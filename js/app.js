@@ -349,8 +349,10 @@ views.settings = () => `<div><h1>Settings</h1></div>${flash()}
     <div class="row between"><span class="small" id="sync-status">${syncLine()}</span>${sync.user ? `<button class="btn small quiet" data-act="syncOut">Sign out</button>` : `<button class="btn small" data-act="syncIn">Sign in with Google</button>`}</div></div>
   <div class="card"><h2>Bring in your Synthesis entries</h2>${synthesisHere() ? `<p>Synthesis has been used in this browser, so your entries can come straight across.</p><div class="row"><button class="btn small" data-act="synthesisLocal">Bring them in now</button></div>` : ""}<p class="muted small">Vision Board, Journal and Shadow Work used to live in Synthesis. To carry your entries over: in Synthesis open Profile and press Export Backup, then choose that file here. Nothing already here is overwritten, and you can do this more than once.</p>
     <div class="row"><label class="btn small ghost" style="cursor:pointer">Choose a Synthesis backup<input type="file" accept="application/json,.json" data-act-change="synthesis" hidden></label></div></div>
-  <div class="card"><h2>Background</h2><p class="muted small">The forest is drawn by the app. If you have a photo you love (a waterfall, a temple garden, your own woods) you can use it instead. It stays in this browser.</p>
-    <div class="row"><label class="btn small ghost" style="cursor:pointer">Use a photo<input type="file" accept="image/*" data-act-change="photo" hidden></label>${hasPhoto() ? `<button class="btn small quiet" data-act="noPhoto">Back to the drawn forest</button>` : ""}</div></div>
+  <div class="card"><h2>Background</h2><p class="muted small">Your zen garden paintings. Pick one, or let it change each day.</p>
+    <div class="bgpicks">${BGS.map(b => `<button type="button" class="bgpick" data-act="bg" data-val="${b[0]}" aria-pressed="${bgChoice() === b[0]}">${b[2] ? `<img src="${b[2]}" alt="" loading="lazy">` : `<i class="${b[0]}"></i>`}<span>${b[1]}</span></button>`).join("")}
+      <label class="bgpick" aria-pressed="${bgChoice() === "photo"}" style="cursor:pointer"><i class="photo"></i><span>${hasPhoto() ? "Change my photo" : "My own photo"}</span><input type="file" accept="image/*" data-act-change="photo" hidden></label></div>
+    <p class="muted small">A photo of your own stays in this browser only.</p></div>
   <p class="muted small">Inner Work is a self-help tool. It is not medical care and does not replace a doctor or therapist.</p>`;
 
 views.guide = id => {
@@ -421,6 +423,8 @@ const after = {
 const journalToday = () => { const d = new Date().toISOString().split("T")[0], e = ensureLife().manifestationJournal.find(x => x.date === d); return !!(e && ((e.gratitude || []).length || (e.goals || []).length || (e.affirmations || []).length || e.notes)); };
 const lifeStats = () => { const L = ensureLife(); return { entries: L.manifestationJournal.length, streak: window.premiumFeatures.getAffirmationStreak(), visions: L.visionBoard.length, exercises: L.shadowWork.completedExercises.length, reflections: (L.shadowWork.reflections || []).length }; };
 const hasPhoto = () => { try { return !!localStorage.getItem("innerwork.bg"); } catch (e) { return false; } };
+const BGS = [["zen1", "Waterfall garden", "assets/bg/zen-waterfall-t.webp"], ["zen2", "Raked sand garden", "assets/bg/zen-garden-t.webp"], ["zen3", "Forest falls", "assets/bg/zen-falls-t.webp"], ["daily", "A new one each day", ""], ["drawn", "Drawn forest", ""]];
+const bgChoice = () => { const c = S.settings.bg || "zen1"; return c === "photo" && !hasPhoto() ? "zen1" : c; };
 ensureLife();
 
 /* ---------- EMDR-style processing ---------- */
@@ -681,7 +685,7 @@ const acts = {
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(copy, null, 1)], { type: "application/json" }));
     a.download = `inner-work-backup-${dayKey()}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   },
-  noPhoto() { try { localStorage.removeItem("innerwork.bg"); } catch (e) { /* nothing stored */ } window.IWScene.refresh(); U.flash = "Back to the drawn forest."; render(); },
+  bg(el) { S.settings.bg = el.dataset.val; saveNow(); window.IWScene.set(S.settings.bg); U.keepScroll = true; render(); },
   reset() {
     if (!confirm("Erase everything you've written in Inner Work on this device?")) return;
     if (!confirm("This can't be undone. Erase it all?")) return;
@@ -739,7 +743,7 @@ function applyCloud(c, msg) {
   let data; try { data = JSON.parse(c.json); } catch (e) { return setSync("Sync error"); }
   if (hasContent(S)) { try { localStorage.setItem(KEY + ".before-sync", JSON.stringify(S)); } catch (e) { /* no room for the spare copy */ } }
   const chats = S.chats, apiKey = S.settings.apiKey;
-  S = Object.assign(blank(), data); S.chats = chats; S.settings = Object.assign({ bls: "both" }, data.settings, { apiKey }); S._updatedAt = c.updatedAt; ensureLife();
+  S = Object.assign(blank(), data); S.chats = chats; S.settings = Object.assign({ bls: "both" }, data.settings, { apiKey }); S._updatedAt = c.updatedAt; ensureLife(); window.IWScene.set(bgChoice());
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ }
   setSync(msg);
   if (!typing()) { U.keepScroll = true; render(); }
@@ -747,7 +751,7 @@ function applyCloud(c, msg) {
 async function pushCloud() {
   if (!sync.user) return;
   try {
-    const copy = clone(S); copy.chats = []; copy.settings = { bls: copy.settings.bls };
+    const copy = clone(S); copy.chats = []; copy.settings = { bls: copy.settings.bls, bg: copy.settings.bg };
     await cloudRef().set({ json: JSON.stringify(copy), updatedAt: S._updatedAt || Date.now(), v: 1 });
     setSync("saved " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
   } catch (e) { setSync("couldn't save online just now"); }
@@ -794,7 +798,7 @@ const changes = {
     img.onload = () => {
       const k = Math.min(1, 1920 / Math.max(img.width, img.height)), cv = document.createElement("canvas");
       cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k); cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url);
-      try { localStorage.setItem("innerwork.bg", cv.toDataURL("image/jpeg", 0.82)); window.IWScene.refresh(); U.flash = "Background changed."; }
+      try { localStorage.setItem("innerwork.bg", cv.toDataURL("image/jpeg", 0.82)); S.settings.bg = "photo"; saveNow(); window.IWScene.set("photo"); U.flash = "Background changed."; }
       catch (e) { U.flash = "That photo is too large to keep in this browser. Try a smaller one."; }
       render();
     };
@@ -808,7 +812,7 @@ const changes = {
       try {
         const d = JSON.parse(rd.result); if (!d || d.v !== 1 || !Array.isArray(d.checkins)) throw new Error("not a backup");
         if (!confirm("Replace what's on this device with this backup?")) return;
-        const key = S.settings.apiKey; S = Object.assign(blank(), d); S.settings = Object.assign({ bls: "both" }, d.settings, { apiKey: key }); ensureLife(); saveNow(); U.flash = "Backup restored."; go("#/today");
+        const key = S.settings.apiKey; S = Object.assign(blank(), d); S.settings = Object.assign({ bls: "both" }, d.settings, { apiKey: key }); ensureLife(); saveNow(); window.IWScene.set(bgChoice()); U.flash = "Backup restored."; go("#/today");
       } catch (e) { U.flash = "That file isn't an Inner Work backup."; render(); }
     };
     rd.readAsText(file);
@@ -863,6 +867,7 @@ document.addEventListener("click", e => {
 document.addEventListener("change", e => { const el = e.target.closest("[data-act-change]"); if (el) changes[el.dataset.actChange](el); });
 document.addEventListener("keydown", e => { if (e.target.id === "composer" && e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); const b = $('[data-act="send"]'); if (b) b.click(); } });
 addEventListener("hashchange", render);
+window.IWScene.set(bgChoice());
 render();
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(() => {});
 if (location.protocol.startsWith("http")) startSync();

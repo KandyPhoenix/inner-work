@@ -1,16 +1,31 @@
-/* Inner Work — the forest behind the app: misty layers of trees, a waterfall and stream,
-   mossy rocks, a seated Buddha and a stone lantern. Drawn to fit whatever screen it is on.
-   A photo chosen in Settings (kept in this browser under "innerwork.bg") replaces the drawing. */
+/* Inner Work — what sits behind the app.
+   Three zen garden paintings (assets/bg) are the built-in backgrounds; Settings picks one, or a new
+   one each day. Two other choices: a forest drawn here to fit the screen (trees, waterfall, stream,
+   rocks, Buddha, lantern), or a photo of your own, kept in this browser under "innerwork.bg". */
 (function () {
   const host = document.getElementById("scene");
   if (!host) return;
   let lastW = 0, lastH = 0;
-  const photo = () => { try { return localStorage.getItem("innerwork.bg"); } catch (e) { return null; } };
-  window.IWScene = { refresh() { lastW = 0; apply(); } };
+  const BG = {                     // file, and the part of the picture to keep in view on a narrow screen
+    zen1: ["assets/bg/zen-waterfall.webp", "62% 50%"],
+    zen2: ["assets/bg/zen-garden.webp", "66% 50%"],
+    zen3: ["assets/bg/zen-falls.webp", "72% 42%"]
+  };
+  const read = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  let choice = read("innerwork.bgchoice") || "zen1";
+  window.IWScene = {
+    names: Object.keys(BG),
+    set(c) { choice = c || "zen1"; try { localStorage.setItem("innerwork.bgchoice", choice); } catch (e) { /* not remembered */ } apply(); },
+    refresh() { apply(); }
+  };
   function apply() {
-    const p = photo();
-    if (p) { host.innerHTML = ""; host.style.backgroundImage = `url("${p}")`; document.documentElement.style.setProperty("--hero", innerWidth < 1000 ? "24vh" : "0vh"); lastW = innerWidth; lastH = innerHeight; }
-    else { host.style.backgroundImage = ""; build(); }
+    let c = choice, own = null;
+    if (c === "daily") c = IWScene.names[Math.floor(Date.now() / 864e5) % IWScene.names.length];
+    if (c === "photo") { own = read("innerwork.bg"); if (!own) c = "zen1"; }
+    if (c === "drawn") { host.style.backgroundImage = ""; build(); return; }
+    host.innerHTML = ""; lastW = innerWidth; lastH = innerHeight;
+    host.style.backgroundImage = `url("${own || BG[c][0]}")`; host.style.backgroundPosition = own ? "center" : BG[c][1];
+    document.documentElement.style.setProperty("--hero", "34vh");
   }
 
   function build() {

@@ -36,7 +36,7 @@ Backup files contain everything you have written. `.gitignore` keeps them out of
 
 ## The look
 
-`js/scene.js` draws the forest behind the app (trees, waterfall, stream, rocks, Buddha, lantern) to fit the screen. Settings → Background swaps it for a photo of your own. Colours and layout are in `styles.css`.
+The backgrounds are three zen garden paintings in `assets/bg`. Settings → Background picks one, rotates them daily, switches to a forest drawn by `js/scene.js`, or uses a photo of your own. Colours and layout are in `styles.css`.
 
 ## Editing
 
