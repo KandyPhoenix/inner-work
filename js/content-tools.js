@@ -1,0 +1,257 @@
+/* Inner Work — measures, mood rescues, deep-work tools, safety plan, guide prompt. */
+window.IW = window.IW || {};
+
+/* ---------- Check-in questionnaires (PHQ-9 and GAD-7, both free to use) ---------- */
+IW.scaleOptions = ["Not at all", "Several days", "More than half the days", "Nearly every day"];
+IW.phq = [
+  "Little interest or pleasure in doing things",
+  "Feeling down, depressed, or hopeless",
+  "Trouble falling or staying asleep, or sleeping too much",
+  "Feeling tired or having little energy",
+  "Poor appetite or overeating",
+  "Feeling bad about yourself, or that you are a failure or have let yourself or your family down",
+  "Trouble concentrating on things, such as reading or watching television",
+  "Moving or speaking so slowly that other people could have noticed. Or the opposite: being so fidgety or restless that you have been moving around a lot more than usual",
+  "Thoughts that you would be better off dead, or of hurting yourself in some way"
+];
+IW.gad = [
+  "Feeling nervous, anxious or on edge",
+  "Not being able to stop or control worrying",
+  "Worrying too much about different things",
+  "Trouble relaxing",
+  "Being so restless that it is hard to sit still",
+  "Becoming easily annoyed or irritable",
+  "Feeling afraid, as if something awful might happen"
+];
+IW.band = function (kind, n) {
+  if (kind === "phq") return n < 5 ? "minimal" : n < 10 ? "mild" : n < 15 ? "moderate" : n < 20 ? "moderately severe" : "severe";
+  return n < 5 ? "minimal" : n < 10 ? "mild" : n < 15 ? "moderate" : "severe";
+};
+
+/* ---------- What the person wants to work on, mapped to tracks ---------- */
+IW.concerns = [
+  ["mood", "Low mood, flatness, depression", "mood"],
+  ["anxiety", "Anxiety, worry or panic", "anxiety"],
+  ["menopause", "Menopause or hormone-related mood changes", "menopause"],
+  ["emotions", "Emotions that feel too big, or patterns in my personality I want to change", "emotions"],
+  ["trauma", "Something traumatic that happened to me", "trauma"],
+  ["childhood", "My childhood and how it still affects me", "roots"],
+  ["relationships", "Relationships, conflict or loneliness", "relationships"],
+  ["grief", "Grief or loss", "grief"],
+  ["worth", "Shame, self-criticism or low self-worth", "worth"]
+];
+
+/* ---------- Mood rescues: short guided sequences for right now ----------
+   Step kinds: say (read), breathe (timer), ask (write), pick (choose one or more). */
+IW.rescues = [
+  { id: "down", name: "Low, flat or heavy", line: "Move the dial one point.",
+    steps: [
+      { k: "say", h: "This is a low. It will lift.", p: "Low mood tells you it has always been like this and always will be. That is the mood talking. You are not trying to feel good in the next ten minutes, only one point better." },
+      { k: "pick", h: "Change your body first. Pick one and do it now, then come back.", opts: ["Stand up and stretch", "Cold water on my face", "Step outside for five minutes", "Have a shower", "Walk for ten minutes", "Put on music and move"] },
+      { k: "ask", id: "weight", h: "What is weighing on you most? One sentence." },
+      { k: "ask", id: "friend", h: "What is the kindest thing a good friend could say about that which is also true?" },
+      { k: "pick", h: "One small thing for the next hour.", opts: ["Finish one tiny task", "Message someone", "Make something to eat", "Tidy one surface", "Sit in daylight", "Do something I used to enjoy for ten minutes"] }
+    ] },
+  { id: "anxious", name: "Anxious, wound up or panicky", line: "Bring the alarm down, then think.",
+    steps: [
+      { k: "breathe", h: "Breathe out longer than you breathe in.", secs: 90 },
+      { k: "say", h: "Come into the room.", p: "Name five things you can see. Four you can touch. Three you can hear. Two you can smell. One you can taste. Go slowly." },
+      { k: "ask", id: "predict", h: "What is your mind predicting will happen?" },
+      { k: "ask", id: "likely", h: "What is most likely to happen? And if the worst did, how would you cope?" },
+      { k: "pick", h: "What does this need?", opts: ["There's a step I can take now", "It can wait for my worry time", "It's a 'what if': I'll let it be"] }
+    ] },
+  { id: "overwhelmed", name: "Overwhelmed, too much", line: "Get it out of your head and shrink it.",
+    steps: [
+      { k: "breathe", h: "One minute first.", secs: 60 },
+      { k: "ask", id: "dump", h: "Empty your head. Everything that's on you, in any order." },
+      { k: "say", h: "Now sort.", p: "Look at that list. Most of it does not have to happen today. Find only what truly must." },
+      { k: "ask", id: "next", h: "The one next thing, small enough to do in ten minutes." },
+      { k: "ask", id: "drop", h: "What can you drop, delay or hand to someone else?" }
+    ] },
+  { id: "angry", name: "Angry, irritable or raging", line: "Discharge it before you reply.",
+    steps: [
+      { k: "say", h: "Stop. Don't send, say or decide anything yet.", p: "Anger narrows your thinking to attack. Whatever needs saying will come out better in twenty minutes." },
+      { k: "pick", h: "Burn off the charge. Pick one and do it now.", opts: ["Cold water on face and wrists", "Fast walk or stairs", "Push hard against a wall", "Shake out arms and legs", "Ten long slow out-breaths"] },
+      { k: "breathe", h: "Slow it down.", secs: 60 },
+      { k: "ask", id: "line", h: "What line was crossed, or what need of yours is being ignored?" },
+      { k: "ask", id: "want", h: "What do you actually want to happen? What response would get you there?" }
+    ] },
+  { id: "shame", name: "Ashamed, attacking myself", line: "Turn toward yourself.",
+    steps: [
+      { k: "say", h: "Shame tells you to hide. Stay.", p: "Put a hand on your chest. Feel the warmth of it. Breathe slowly. You are a person having a painful moment, like every person has had." },
+      { k: "ask", id: "critic", h: "What is the critic saying?" },
+      { k: "ask", id: "facts", h: "What happened, in plain facts with no adjectives?" },
+      { k: "ask", id: "love", h: "What would you say to someone you love if this had happened to them?" },
+      { k: "pick", h: "What does this need?", opts: ["Something to repair: I'll apologise or fix one thing", "Nothing to fix: this is old shame", "To be said aloud to one safe person"] }
+    ] },
+  { id: "lonely", name: "Lonely", line: "One small reach.",
+    steps: [
+      { k: "say", h: "Loneliness is a signal, like hunger.", p: "It means you need contact. It does not mean nobody wants you. It also makes the mind expect rejection, so discount that prediction." },
+      { k: "ask", id: "who", h: "Who has crossed your mind lately?" },
+      { k: "pick", h: "Pick one small reach and do it now.", opts: ["Text someone 'thinking of you'", "Send a voice note", "Go somewhere there are people", "Phone someone", "Reply to a message I've left"] },
+      { k: "ask", id: "self", h: "And something that helps you feel like good company for yourself tonight?" }
+    ] },
+  { id: "numb", name: "Numb, shut down or far away", line: "Wake the body up gently.",
+    steps: [
+      { k: "say", h: "Your system has pulled the plug to protect you.", p: "Numbness is the nervous system's shutdown mode. Thinking won't shift it. Sensation and movement will." },
+      { k: "pick", h: "Pick one and do it now.", opts: ["Cold water or ice in my hands", "A strong taste: mint, lemon, ginger", "Stamp my feet and press my palms together", "Name five things by colour", "Music with a beat, and move"] },
+      { k: "say", h: "Say it out loud.", p: "Today's date. Where you are. Three things you can see. 'I am here.'" },
+      { k: "ask", id: "feel", h: "One thing you can feel right now, however faint." },
+      { k: "pick", h: "A gentle next step.", opts: ["A warm drink", "Go outside", "Message someone", "A slow walk"] }
+    ] },
+  { id: "sleepless", name: "Awake in the night", line: "Rest instead of solving.",
+    steps: [
+      { k: "say", h: "Nothing gets solved at 3am.", p: "Your threat system is running and everything looks twice its size. Turn the clock away. The job right now is rest, even without sleep." },
+      { k: "breathe", h: "Slow breathing.", secs: 120 },
+      { k: "ask", id: "park", h: "Park it. Write what is circling, and when tomorrow you'll look at it." },
+      { k: "say", h: "If you're still awake in twenty minutes", p: "Get up. Keep the lights low. Do something dull and quiet. Go back to bed when you feel sleepy. Get up at your usual time whatever happens." }
+    ] },
+  { id: "surge", name: "Hot flush or hormone surge", line: "It peaks and passes in minutes.",
+    steps: [
+      { k: "say", h: "This is a surge. It is not danger.", p: "Your body's thermostat has misfired, or your hormones have lurched. It will pass in a few minutes. Drop your shoulders." },
+      { k: "breathe", h: "Slow breaths into your belly.", secs: 90 },
+      { k: "pick", h: "Cool down.", opts: ["Cold water on wrists", "Fan or open window", "Take a layer off", "Step outside", "Cold drink"] },
+      { k: "ask", id: "thought", h: "What thought came with it?" },
+      { k: "say", h: "A truer line", p: "'This is my body adjusting. It passes. I don't have to decide or reply to anything for the next twenty minutes.'" }
+    ] },
+  { id: "triggered", name: "Triggered or reliving something", line: "That was then. This is now.",
+    steps: [
+      { k: "say", h: "You are having a memory.", p: "It feels like it is happening now. It isn't. Your body is reacting to something that is over. Look around the room you are actually in." },
+      { k: "ask", id: "orient", h: "Write: today's date, where you are, how old you are, and three things you can see that prove it is now." },
+      { k: "pick", h: "Ground your body. Pick one and do it.", opts: ["Press my feet hard into the floor", "Hold something cold", "Name five colours I can see", "Cross my arms and tap my shoulders slowly", "Smell something strong"] },
+      { k: "breathe", h: "Long out-breaths.", secs: 60 },
+      { k: "ask", id: "need", h: "What do you need for the next hour?" }
+    ] }
+];
+
+/* ---------- Deep-work tools: for what isn't shifting, and for finding answers ---------- */
+IW.tools = [
+  { id: "stuck", name: "Untangle something that isn't getting better", m: "Formulation · solution-focused therapy",
+    intro: "For a problem you've had for a while. This lays out what is holding it in place, which is rarely what it looks like from inside.",
+    f: [
+      ["problem", "ta", "The problem, in a sentence or two"],
+      ["began", "ta", "How long has it been going on? What was happening in your life when it started?"],
+      ["tried", "ta", "What have you tried? What helped a little, and what made no difference?"],
+      ["keeps", "ta", "What keeps it going? Things you do, avoid or tell yourself; things other people do."],
+      ["protects", "ta", "Honestly, with no blame: what does this problem get you out of, or protect you from?"],
+      ["exceptions", "ta", "When is it absent or weaker? What is different at those times?"],
+      ["ten", "ta", "If it were 10% better, what would you be doing differently?"],
+      ["experiment", "ta", "One small experiment for this week"]
+    ] },
+  { id: "immunity", name: "Why can't I change this?", m: "Immunity to change",
+    intro: "When you truly want to change and keep not changing, part of you is committed to something else. This finds what.",
+    f: [
+      ["want", "ta", "The change you really want to make"],
+      ["instead", "ta", "What you actually do, or don't do, that works against it. Be thorough."],
+      ["fear", "ta", "Imagine doing the opposite of each of those. What worry or dread comes up?"],
+      ["hidden", "ta", "So you are also committed to… (for example: never being rejected, never looking foolish, not losing control)"],
+      ["assume", "ta", "The big assumption underneath: 'I assume that if I ___, then ___.'"],
+      ["learned", "ta", "Where did you learn that assumption?"],
+      ["true", "sc", "How true does it feel? (0 = not at all, 10 = completely)"],
+      ["test", "ta", "A small, safe way to test whether it's still true"]
+    ] },
+  { id: "root", name: "Follow it down to the root", m: "Downward arrow · schema therapy",
+    intro: "For a reaction that is bigger than the situation deserves. You follow the thought down until you reach the belief that powers it, then look at where that belief came from.",
+    f: [
+      ["situation", "ta", "What set it off?"],
+      ["thought", "ta", "What went through your mind?"],
+      ["mean1", "ta", "If that were true, what would it mean about you?"],
+      ["mean2", "ta", "And if that were true, what would that mean?"],
+      ["mean3", "ta", "And what is the worst part of that?"],
+      ["core", "tx", "The belief at the bottom, in a few words"],
+      ["earliest", "ta", "The earliest time you remember feeling this"],
+      ["taught", "ta", "Who or what taught it to you?"],
+      ["child", "ta", "What couldn't a child have known or understood back then?"],
+      ["doesntfit", "ta", "What in your adult life doesn't fit this belief?"],
+      ["updated", "ta", "A belief you're willing to try on instead"]
+    ] },
+  { id: "pattern", name: "Find the pattern across your life", m: "Psychodynamic · narrative therapy",
+    intro: "For the thing that keeps happening with different people and in different places. Seeing the pattern is what makes the choice point visible.",
+    f: [
+      ["happens", "ta", "What keeps happening?"],
+      ["times", "ta", "Three times it has happened, earliest first"],
+      ["common", "ta", "What do they have in common? The kind of person, the part you played, how it ended."],
+      ["felt", "ta", "What did you feel each time?"],
+      ["first", "ta", "What was the first relationship in which you felt that?"],
+      ["hoping", "ta", "What do you keep hoping will turn out differently this time?"],
+      ["mypart", "ta", "What do you do, without meaning to, that helps it happen again?"],
+      ["choice", "ta", "Where is the choice point, and what is a different move?"],
+      ["title", "tx", "A title for the new version of this story"]
+    ] },
+  { id: "part", name: "Talk with a part of you", m: "Internal Family Systems-informed",
+    intro: "For when you're torn, or when something in you keeps taking over. Speak to that part as you would to a person, and write what comes back.",
+    f: [
+      ["which", "tx", "Which part? Give it a name."],
+      ["where", "tx", "Where do you feel it in your body?"],
+      ["toward", "ta", "How do you feel toward it? (If the answer is irritated or ashamed, that's another part. Ask it to step back for a moment.)"],
+      ["job", "ta", "Ask it: what is your job? Write what it says."],
+      ["since", "ta", "How long have you been doing this? How old do you think I am?"],
+      ["fear", "ta", "What are you afraid would happen if you stopped?"],
+      ["protect", "ta", "Who or what are you protecting?"],
+      ["need", "ta", "What do you need from me?"],
+      ["say", "ta", "What do you want to say to it?"]
+    ] },
+  { id: "accept", name: "Change it, or make peace with it?", m: "Acceptance and commitment therapy · radical acceptance",
+    intro: "For something you've fought for a long time. This separates what you can still move from what you can't, and works on the second.",
+    f: [
+      ["what", "ta", "The situation"],
+      ["tried", "ta", "What have you tried, and for how long?"],
+      ["control", "ta", "What is in your control?"],
+      ["influence", "ta", "What can you influence but not control?"],
+      ["outside", "ta", "What is outside your control?"],
+      ["feel", "ta", "If you stopped fighting the last part, what would you have to feel?"],
+      ["cost", "ta", "What does the fight cost you?"],
+      ["possible", "ta", "Given how things are, what is still possible?"],
+      ["willing", "ta", "'I don't like it, I didn't choose it, and I am willing to ___.'"]
+    ] },
+  { id: "letter", name: "The unsent letter", m: "Expressive writing · empty-chair work",
+    intro: "For what you never got to say, to someone living or dead, or to a part of your own past. It will not be sent, so hold nothing back.",
+    f: [
+      ["to", "tx", "Who is it to?"],
+      ["letter", "ta", "The letter"],
+      ["reply", "ta", "If they could truly hear you, what would they say?"],
+      ["now", "ta", "Now that it's out, what do you need?"]
+    ] }
+];
+
+/* ---------- Safety plan (Stanley-Brown format) ---------- */
+IW.safetyPlan = [
+  ["signs", "My warning signs that a crisis may be building"],
+  ["cope", "Things I can do on my own to take my mind off it"],
+  ["places", "People and places that distract me"],
+  ["people", "People I can ask for help (names and numbers)"],
+  ["pros", "Professionals I can contact (names and numbers)"],
+  ["safe", "How I'll make where I am safer"],
+  ["reasons", "My reasons for living"]
+];
+
+/* ---------- The AI guide ---------- */
+IW.guidePrompt = `You are the guide inside Inner Work, a private self-guided therapy program that also holds the person's journal, vision board and Jungian shadow work. The person talking to you is working through structured sessions on their own and comes to you to think things through more deeply. You are not a licensed clinician and you never present yourself as one. What you offer is skilled, warm, honest conversation that draws on the same methods therapists use.
+
+How to work with them
+
+Listen first. Reflect back what you heard in your own words, including what seems to sit underneath it, before you offer anything. Ask one question at a time and wait for the answer. Follow where they go.
+
+Go deep. They want to understand why they are the way they are and why some things don't change, so a conversation that only teaches coping skills falls short. Look for the pattern across what they tell you: the same feeling in different situations, the old relationship being replayed, the belief formed in childhood, the part of them that is protecting something. Offer what you notice as a tentative observation and ask whether it fits. Let them reach the insight where you can. When something in what they say contradicts something they said earlier, name it gently.
+
+Draw on whichever approach fits the moment: cognitive and behavioural methods, behavioural activation, exposure, EMDR-informed work, DBT skills, acceptance and commitment therapy, compassion-focused therapy, schema therapy, parts work in the style of Internal Family Systems, Jungian shadow work and archetypes, psychodynamic and attachment thinking, interpersonal therapy, narrative and existential approaches, motivational interviewing, grief work, and body-based grounding. Explain an idea in plain words when you use it. Do not lecture.
+
+When they are low or distressed right now, help with the state first. Steady the body, bring the intensity down, and only then explore.
+
+When something can't be changed, help them tell apart what they can move from what they can't, and stay with the grief and anger of the second. Do not hurry them toward acceptance.
+
+Be honest. If they are avoiding something, or the story they tell about themselves doesn't match the facts they've given, say so kindly. Warmth without honesty will not help them.
+
+End most replies with either a question that takes them deeper or one small concrete thing to try. Keep replies short enough to feel like conversation: usually a few short paragraphs. Write in plain paragraphs with no headings, bullet lists or other formatting.
+
+Limits you hold
+
+You do not diagnose, and you do not advise starting, stopping or changing any medication or hormone treatment. When those questions come up, help them prepare for a conversation with a doctor and encourage them to have it. Mood changes around menopause deserve a medical review as well as psychological work.
+
+With trauma, go at their pace. Check they can ground themselves before going into detail, keep one foot in the present, and stop to stabilise if they become overwhelmed or start to feel unreal or far away. The app has a self-guided EMDR-style tool (under Deeper) for memories and upsets in the middle range; you can help them choose a suitable target, prepare the negative and positive beliefs, and talk through what came up afterwards. For severe or complex trauma, childhood abuse, or anyone who dissociates, be clear that this should be done with a trained EMDR or trauma therapist.
+
+If they mention thoughts of suicide or self-harm, respond with care and take it seriously. Ask directly and calmly whether they are thinking of ending their life and whether they are safe right now. Stay with them. Point them to the safety plan and the Help now button in the app. In the United States they can call or text 988 at any time, text HOME to 741741, or call 911 if they are in immediate danger; anywhere else, their local emergency number. Encourage them to tell someone they trust today. Do not end the conversation abruptly and do not lecture.
+
+If their check-in scores stay high after they have done the work, say plainly that adding a human therapist or a medical review is the right next step, and that this is a normal part of treatment.
+
+Below is what the app knows about this person. Use it naturally, the way a therapist who had read the file would. Do not recite it back.`;

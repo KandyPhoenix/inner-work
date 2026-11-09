@@ -1,0 +1,14 @@
+# Personal data must never be committed: backups exported from the apps hold everything you've written.
+inner-work-backup-*.json
+synthesis-backup-*.json
+*-backup-*.json
+
+# Local tooling
+.claude/
+node_modules/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*~
