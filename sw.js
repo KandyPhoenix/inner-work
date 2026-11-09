@@ -1,5 +1,5 @@
 /* Lets the app open without a connection once it has been loaded. Network first, saved copy as fallback. */
-const CACHE = "inner-work-v3";
+const CACHE = "inner-work-v4";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 self.addEventListener("fetch", e => {
