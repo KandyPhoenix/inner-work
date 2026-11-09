@@ -836,19 +836,21 @@ function startBreath(box) {
 }
 
 /* ---------- router ---------- */
-const TAB = { vision: "vision", journal: "journal", shadow: "shadow", emdr: "explore", today: "today", rescue: "today", program: "program", session: "program", graduate: "progress", explore: "explore", thread: "explore", guide: "guide", progress: "progress", checkin: "progress" };
+const TAB = { intake: "today", vision: "vision", journal: "journal", shadow: "shadow", emdr: "explore", today: "today", rescue: "today", program: "program", session: "program", graduate: "progress", explore: "explore", thread: "explore", guide: "guide", progress: "progress", checkin: "progress" };
 function render() {
   stopTimers();
   const parts = (location.hash.replace(/^#\/?/, "") || "today").split("/");
   let name = parts[0];
-  if (!S.profile && name !== "crisis" && name !== "safety" && name !== "settings") name = "intake";
+  // Before the welcome check-in is done, the therapy screens lead to it. Vision, Journal,
+  // Shadow, Settings and Help now are open from the start.
+  const OPEN = ["crisis", "safety", "settings", "vision", "journal", "shadow"];
+  if (!S.profile && !OPEN.includes(name)) name = "intake";
   if (S.profile && name === "intake") name = "today";
   const view = $("#view");
   view.innerHTML = (views[name] || views.today)(parts[1], parts[2]);
   document.body.dataset.view = views[name] ? name : "today";
   if (after[name]) after[name]();
   document.querySelectorAll(".tabs a").forEach(a => a.classList.toggle("on", a.dataset.tab === TAB[name]));
-  $(".tabs").hidden = !S.profile;
   view.querySelectorAll("textarea").forEach(grow);
   if (U.keepScroll) U.keepScroll = false; else window.scrollTo(0, 0);
 }
