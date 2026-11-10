@@ -70,7 +70,7 @@ function chips(path, opts, stack) {
 }
 function scale(path, label, lo, hi, min = 0, max = 10) {
   const v = get(path);
-  return `<label class="fld"><span>${esc(label)}</span><div class="scale"><input type="range" min="${min}" max="${max}" step="1" value="${v == null ? Math.round((min + max) / 2) : v}" data-bind="${path}" data-num="1" class="${v == null ? "unset" : ""}"><output>${v == null ? "–" : v}</output></div>${lo ? `<div class="ends"><span>${esc(lo)}</span><span>${esc(hi)}</span></div>` : ""}</label>`;
+  return `<label class="fld">${label ? `<span>${esc(label)}</span>` : ""}<div class="scale"><input type="range" min="${min}" max="${max}" step="1" value="${v == null ? Math.round((min + max) / 2) : v}" data-bind="${path}" data-num="1" class="${v == null ? "unset" : ""}"><output>${v == null ? "–" : v}</output></div>${lo ? `<div class="ends"><span>${esc(lo)}</span><span>${esc(hi)}</span></div>` : ""}</label>`;
 }
 const breather = secs => `<div class="breather" data-secs="${secs}"><div class="orb"></div><div class="btxt">In for 4, out for 6</div><button type="button" class="btn ghost small" data-act="breathe">Start</button></div>`;
 function field(base, f) {
@@ -181,30 +181,154 @@ views.program = () => `
       <ul class="slist">${t.sessions.map((s, i) => `<li class="${done(s.id) ? "done" : nx && nx.id === s.id ? "next" : ""}"><a href="#/session/${s.id}"><span class="st">${done(s.id) ? "✓" : i + 1}</span><span>${esc(s.t)}<small>${esc(s.m)}</small></span></a></li>`).join("")}</ul>` : ""}</div>`;
   }).join("")}`;
 
+/* ---------- guided flows ----------
+   Sessions and the Deeper tools run the way a therapy hour does: one question at a time, what you
+   said earlier kept in view, and later questions chosen by earlier answers.
+   A step is { id, k, q, p, opts, echo, when, s, need }. k: ta (long answer), tx (short answer),
+   sc (0–10), ck (pick any), one (pick one), say (the guide speaks), br (breathing).
+   echo shows an earlier answer above the question ("id", or "session.id" for another session);
+   when(answers) decides whether the step is asked; s is its label in the summing-up and on Your map. */
+const filled = v => Array.isArray(v) ? v.length > 0 : v != null && String(v).trim() !== "";
+const txt = (x, a) => typeof x === "function" ? x(a) : x;
+const optLabel = (s, v) => { const o = (s.opts || []).find(x => (Array.isArray(x) ? x[0] : x) === v); return o ? (Array.isArray(o) ? o[1] : o) : v; };
+const shown = (s, v) => s.k === "one" ? optLabel(s, v) : Array.isArray(v) ? v.join(", ") : String(v).trim();
+const said = (t, cap) => filled(t) ? `${cap ? `<p class="cap">${esc(cap)}</p>` : ""}<blockquote class="about">${esc(t).replace(/\n/g, "<br>")}</blockquote>` : "";
+const asked = (f, a) => f.filter(x => x.id && filled(a[x.id]) && (!x.when || x.when(a)));
+const keyPoints = (f, a) => asked(f, a).filter(x => x.s).map(x => [x.s, shown(x, a[x.id])]);
+const pointsHtml = pts => pts.map(p => `<div class="qa"><p class="cap">${esc(p[0])}</p><p>${esc(p[1]).replace(/\n/g, "<br>")}</p></div>`).join("");
+const recordHtml = (f, a) => asked(f, a).map(x => `<div class="qa"><p class="cap">${esc(txt(x.q, a))}</p><p>${esc(shown(x, a[x.id])).replace(/\n/g, "<br>")}</p></div>`).join("");
+function echoes(s, f, a) {
+  let first = true;
+  return [].concat(s.echo || []).map(ref => {
+    const [sid, id] = ref.includes(".") ? ref.split(".") : [null, ref];
+    if (sid && !SES[sid]) return "";
+    const src = sid ? SES[sid].s.f : f, ans = sid ? ((S.sessions[sid] || {}).answers || {}) : a, st = asked(src, ans).find(x => x.id === id);
+    if (!st) return "";
+    const cap = sid ? `In “${SES[sid].s.t}” you wrote` : first ? s.lead || "You wrote" : ""; if (!sid) first = false;
+    return said(shown(st, ans[id]), cap);
+  }).join("");
+}
+function stepCard(s, f, a) {
+  const q = txt(s.q, a), ps = [].concat(txt(s.p, a) || []), path = s.path, v = path ? get(path) : null;
+  const hint = s.k === "say" ? "" : ps.map(x => `<p class="muted">${esc(x)}</p>`).join("");
+  const links = s.links ? `<div class="row">${s.links.map(l => `<a class="btn ghost small" href="${l[0]}">${esc(l[1])}</a>`).join("")}</div>` : "";
+  const one = o => { const [val, label] = Array.isArray(o) ? o : [o, o]; return `<button type="button" class="chip" data-act="one" data-path="${path}" data-val="${esc(val)}" aria-pressed="${String(v) === String(val)}">${esc(label)}</button>`; };
+  let body;
+  if (s.k === "say") body = ps.map(x => `<p>${esc(x)}</p>`).join("") + links;
+  else if (s.k === "br") body = hint + breather(s.secs || 120);
+  else if (s.k === "sc") body = hint + scale(path, "", s.lo || "0", s.hi || "10");
+  else if (s.k === "ck") body = hint + chips(path, s.opts, s.opts.some(o => String(Array.isArray(o) ? o[1] : o).length > 28));
+  else if (s.k === "one") body = hint + `<div class="chips stack">${s.opts.map(one).join("")}</div>`;
+  else if (s.k === "tx") body = hint + `<input type="text" data-bind="${path}" value="${esc(v || "")}" aria-label="${esc(q)}">`;
+  else body = hint + `<textarea data-bind="${path}" rows="4" aria-label="${esc(q)}">${esc(v || "")}</textarea>`;
+  return `<div class="card${s.k === "say" ? " soft" : ""}">${s.html || ""}${echoes(s, f, a)}${q ? `<h2 class="q">${esc(q)}</h2>` : ""}${body}</div>`;
+}
+function flowScreen(o) {
+  const s = o.steps[o.i], n = o.steps.length, d = `data-kind="${o.kind}" data-ref="${o.ref}"`;
+  return `${o.back}${o.eyebrow ? `<p class="eyebrow">${esc(o.eyebrow)}${s.phase ? " · " + esc(s.phase) : ""}</p>` : ""}<div class="bar"><i style="width:${n > 1 ? 100 * o.i / (n - 1) : 100}%"></i></div>${flash()}
+    ${o.special(s) || stepCard(s, o.f, o.a)}
+    <div class="row between">${o.i > 0 ? `<button class="btn quiet" data-act="flowBack" ${d}>Back</button>` : "<span></span>"}${s.halt ? `<a class="btn" href="${o.home}">Leave it for today</a>` : `<button class="btn" data-act="flowNext" ${d}>${o.i === n - 1 ? "Finish" : s.k === "open" ? "Begin" : "Next"}</button>`}</div>
+    ${s.k === "open" ? "" : `<div class="row between"><span class="small">It keeps your place if you need to stop.</span><button class="btn quiet small" data-act="newChat" ${d}>Stuck? Talk it through with the guide</button></div>`}`;
+}
+function flowOf(kind, ref) {
+  if (kind === "session") {
+    if (!SES[ref] || !S.sessions[ref]) return null; const st = S.sessions[ref];
+    return { st, steps: sessionSteps(ref), finish() { st.doneAt = st.doneAt || Date.now(); st.at = null; saveNow(); if (SES[ref].s.graduation) return go("#/graduate"); U.flash = "Session complete. It's saved, and the main points are on your map."; render(); } };
+  }
+  const t = S.threads.find(x => x.id === ref); if (!t) return null;
+  return { st: t, steps: threadSteps(t), finish() { t.at = null; saveNow(); U.flash = "Saved. Come back and add to it when you've lived with it for a few days."; render(); } };
+}
+
+// The frame every session shares: arrive (how you are, what's on your mind, how the practice went),
+// understand, the work itself, and a close (summing-up, takeaway, practice plan, how you are leaving).
+function sessionSteps(id) {
+  const { s } = SES[id], st = S.sessions[id], a = st.answers, base = `sessions.${id}`, out = [];
+  const add = (phase, x) => out.push(Object.assign({ phase }, x));
+  const pv = st.prev && SES[st.prev] && st.prev !== id ? st.prev : null, pst = pv ? S.sessions[pv] || {} : {};
+  out.push({ k: "open" });
+  add("Arrive", { k: "sc", path: `${base}.moodBefore`, q: "Before anything else: how are you right now?", lo: "worst", hi: "best" });
+  if (st.moodBefore != null && st.moodBefore <= 2) add("Arrive", { k: "say", q: "That is a very low number.",
+    p: ["A therapist would stop here and attend to how you are before doing anything else. You don't have to do a session in this state.", "If you want to steady first, do that and come back: this session keeps your place. If you are thinking about ending your life, go to Help now. Otherwise carry on, gently, and stop whenever you need to."],
+    links: [["#/rescue", "Steady myself first"], ["#/crisis", "Help now"]] });
+  add("Arrive", { k: "ta", path: `${base}.mind`, q: pv ? "What has been most on your mind since last time?" : "What is most on your mind as you sit down to this?",
+    p: "A line or two is enough. If something needs attention before today's work, this is where you say it.",
+    html: pv ? said(pst.takeaway, `Last time, in “${SES[pv].s.t}”, you wanted to remember`) : "" });
+  if (filled(st.mind)) add("Arrive", { k: "one", path: `${base}.agenda`, q: "Does that need attention before today's session?", html: said(st.mind, "You wrote"),
+    opts: [["no", "No. It can sit beside today's work"], ["yes", "Yes. It is taking up all the room"]] });
+  if (filled(st.mind) && st.agenda === "yes") add("Arrive", { k: "say", q: "Then that comes first.",
+    p: ["A session only works if there is room in you for it. When something is pressing, the pressing thing is the session.", "You can take it one piece at a time in a mood rescue, work it through with one of the Deeper tools, or talk it through with the guide. This session keeps your place. Or carry on now if you would rather: sometimes the planned work is a relief."],
+    links: [["#/rescue/overwhelmed", "Take it one piece at a time"], ["#/explore", "Work it through in Deeper"]] });
+  if (pv && SES[pv].s.practice) {
+    add("Arrive", { k: "one", optional: true, path: `${base}.pr`, q: "How did the practice go?", html: said(SES[pv].s.practice, `After “${SES[pv].s.t}” you set out to practise this`),
+      opts: [["most", "I did it most days"], ["some", "A few times"], ["none", "I didn't get to it"]] });
+    if (st.pr === "most") add("Arrive", { k: "ta", path: `${base}.review`, q: "What did you notice when you did it?", p: "What changed, even slightly: in your mood, your body, what you did next, how other people responded." });
+    if (st.pr === "some") add("Arrive", { k: "ta", path: `${base}.review`, q: "What did you notice on the days you did it? And what got in the way on the others?" });
+    if (st.pr === "none") {
+      add("Arrive", { k: "say", q: "That is information, not a failing.", p: ["Practice that doesn't happen is usually too big, too vague, or not tied to anything in your day. Sometimes part of you doubted it would help, or didn't want to feel what it would bring up.", "Every one of those can be worked with. None of them means you are doing this wrong."] });
+      add("Arrive", { k: "ta", path: `${base}.review`, q: "What got in the way? Be as exact as you can.", p: "Forgot. No time. Too hard. Didn't see the point. Something happened. Didn't want to feel it." });
+    }
+  }
+  add("Understand", { k: "learn" });
+  add("Understand", { k: "ta", path: `${base}.lands`, q: "Which part of that is closest to home for you?", p: "Name the line that made you think of your own life, and what it brought to mind. If none of it fits you, say that." });
+  s.f.forEach(x => { if (!x.when || x.when(a)) add("Work it through", Object.assign({}, x, { path: x.id ? `${base}.answers.${x.id}` : null })); });
+  if (keyPoints(s.f, a).length) add("Close", { k: "sum" });
+  add("Close", { k: "ta", path: `${base}.takeaway`, q: "What is the one thing from today you want to remember?", p: "Put it in a sentence you could say to yourself next week." });
+  add("Close", { k: "practice" });
+  add("Close", { k: "ta", path: `${base}.block`, q: "What is most likely to get in the way of the practice, and what will you do when it does?", p: "Naming the obstacle in advance roughly doubles the chance you'll do it." });
+  add("Close", { k: "sc", path: `${base}.moodAfter`, q: "And how are you now, at the end?", lo: "worst", hi: "best" });
+  if (st.moodBefore != null && st.moodAfter != null && st.moodAfter <= st.moodBefore - 2) add("Close", { k: "say", q: "This one stirred something up.",
+    p: ["That is common after real work. A session can leave you rawer than it found you, and it usually settles within a day.", "Do something ordinary and kind in the next hour: eat, walk, be near someone. If it stays heavy, use a mood rescue or talk it through with the guide."],
+    links: [["#/rescue", "Steady myself"]] });
+  add("Close", { k: "sc", path: `${base}.helpful`, q: "How useful was this session to you?", lo: "not at all", hi: "very" });
+  if (st.helpful != null && st.helpful <= 5) add("Close", { k: "ta", path: `${base}.missed`, q: "What didn't fit you, or what did it miss?", p: "A therapist would want to know. Writing it down also tells you what to take to the guide or to a Deeper tool." });
+  return out;
+}
+
 views.session = id => {
   const e = SES[id]; if (!e) return views.program();
   const { s, t, i } = e, base = `sessions.${id}`;
   if (!S.sessions[id]) S.sessions[id] = { answers: {} };
-  if (!S.sessions[id].answers) S.sessions[id].answers = {};
-  if (!S.sessions[id].startedAt) { S.sessions[id].startedAt = Date.now(); save(); }
-  const st = S.sessions[id], p = plan(), pos = p.findIndex(x => x.id === id), prev = pos > 0 ? p[pos - 1] : null, nxt = pos >= 0 ? p[pos + 1] : null;
-  const caution = s.caution || (i === 0 && t.caution);
-  return `
-    <a class="back" href="#/program">← Program</a>
-    <div><p class="eyebrow">${esc(t.name)} · Session ${i + 1} of ${t.sessions.length}</p><h1>${esc(s.t)}</h1><p style="margin-top:10px"><span class="tag">${esc(s.m)}</span></p></div>
-    ${caution ? `<div class="card warn"><h3>Go carefully</h3><p>${esc(caution)}</p></div>` : ""}
-    <div class="card"><div class="step"><span class="n">1</span><h2>Arrive</h2></div>
-      ${scale(`${base}.moodBefore`, "Your mood right now", "worst", "best")}
-      ${prev && prev.practice ? `<label class="fld"><span>Last time you set out to practise this. How did it go?</span><p class="muted small">${esc(prev.practice)}</p><textarea data-bind="${base}.review" rows="2">${esc(st.review || "")}</textarea></label>` : ""}</div>
-    <div class="card learn"><div class="step"><span class="n">2</span><h2>Understand</h2></div>${s.learn.map(x => `<p>${esc(x)}</p>`).join("")}</div>
-    <div class="card"><div class="step"><span class="n">3</span><h2>Work it through</h2></div><p class="muted">${esc(s.intro)}</p>${s.f.map(f => field(`${base}.answers`, f)).join("")}</div>
-    <div class="card soft"><div class="step"><span class="n">4</span><h2>Between now and next time</h2></div><p>${esc(s.practice)}</p></div>
-    <div class="card"><div class="step"><span class="n">5</span><h2>What you're taking away</h2></div>
-      <label class="fld"><span>The one thing from this session you want to remember</span><textarea data-bind="${base}.takeaway" rows="2">${esc(st.takeaway || "")}</textarea></label>
-      ${scale(`${base}.helpful`, "How useful was this session?", "not at all", "very")}</div>
-    <div class="row between"><button class="btn ghost" data-act="newChat" data-kind="session" data-ref="${id}">Talk this through with the guide</button>
-      ${st.doneAt ? `<span class="muted small">Completed ${fmtDate(st.doneAt)}</span>` : `<button class="btn" data-act="completeSession" data-id="${id}">Mark session complete</button>`}</div>
-    ${st.doneAt && nxt ? `<a class="card" href="#/session/${nxt.id}"><p class="eyebrow">Up next</p><h3>${esc(nxt.t)}</h3><p class="muted small">Give yourself a few days of practice first.</p></a>` : ""}`;
+  const st = S.sessions[id]; if (!st.answers) st.answers = {};
+  if (!st.startedAt) { st.startedAt = Date.now(); save(); }
+  if (st.prev === undefined) { const ld = lastDoneId(); st.prev = ld && ld !== id ? ld : null; save(); }
+  const a = st.answers, p = plan(), pos = p.findIndex(x => x.id === id), nxt = pos >= 0 ? p[pos + 1] : null;
+  const caution = s.caution || (i === 0 && t.caution), pts = keyPoints(s.f, a), d = `data-kind="session" data-ref="${id}"`;
+  const head = `<div><p class="eyebrow">${esc(t.name)} · Session ${i + 1} of ${t.sessions.length}</p><h1>${esc(s.t)}</h1><p style="margin-top:10px"><span class="tag">${esc(s.m)}</span></p></div>`;
+  if (st.doneAt && typeof st.at !== "number") {
+    const all = recordHtml(s.f, a);
+    return `<a class="back" href="#/program">← Program</a>${head}${flash()}
+      ${pts.length ? `<div class="card"><h2>What you worked out</h2>${pointsHtml(pts)}</div>` : ""}
+      ${filled(st.takeaway) ? `<div class="card soft"><h2>What you wanted to remember</h2><p>${esc(st.takeaway).replace(/\n/g, "<br>")}</p></div>` : ""}
+      <div class="card"><h2>Between now and next time</h2><p>${esc(s.practice)}</p>${filled(st.when) ? `<p class="muted small">Your plan: ${esc(st.when)}</p>` : ""}</div>
+      ${all ? `<details class="card"><summary>Everything you wrote in this session</summary>${all}</details>` : ""}
+      <div class="row between"><button class="btn ghost" data-act="flowAgain" ${d}>Go through it again</button><button class="btn ghost" data-act="newChat" ${d}>Talk this through with the guide</button></div>
+      <p class="small">Completed ${fmtDate(st.doneAt)}. Going through it again keeps what you wrote, and you can change any answer.</p>
+      ${nxt ? `<a class="card" href="#/session/${nxt.id}"><p class="eyebrow">Up next</p><h3>${esc(nxt.t)}</h3><p class="muted small">Give yourself a few days of practice first.</p></a>` : ""}`;
+  }
+  const steps = sessionSteps(id), at = Math.min(st.at || 0, steps.length - 1);
+  const special = x =>
+    x.k === "open" ? `${head}${caution ? `<div class="card warn"><h3>Go carefully</h3><p>${esc(caution)}</p></div>` : ""}
+        <div class="card"><p>This runs the way a session with a therapist does. You check in, there is something to understand, then the work itself, one question at a time, with each question following from what you said before. It ends by summing up what you found and agreeing what to practise.</p>
+        <p class="muted">Allow 30 to 45 minutes somewhere you won't be interrupted. Write the way you'd talk. You can skip a question, go back, or stop and come back later.</p></div>`
+    : x.k === "learn" ? `<div class="card learn"><h2 class="q">First, something to understand</h2>${s.learn.map(y => `<p>${esc(y)}</p>`).join("")}</div>`
+    : x.k === "sum" ? `<div class="card"><h2 class="q">Here is what you worked out today</h2><p class="muted">Read it back slowly. These are your own words.</p>${pointsHtml(pts)}</div>`
+    : x.k === "practice" ? `<div class="card soft"><h2 class="q">Between now and next time</h2><p>${esc(s.practice)}</p><label class="fld"><span>When and where will you do it? Tie it to something you already do every day.</span><input type="text" data-bind="${base}.when" value="${esc(st.when || "")}"></label></div>`
+    : "";
+  return flowScreen({ kind: "session", ref: id, back: `<a class="back" href="#/program">← Program</a>`, eyebrow: at === 0 ? "" : s.t, home: "#/program", steps, i: at, f: s.f, a, special });
+};
+
+views.map = () => {
+  const blocks = IW.trackOrder.filter(isOn).map(tid => {
+    const rows = TRACK[tid].sessions.map(s => {
+      const st = S.sessions[s.id]; if (!st) return "";
+      const pts = keyPoints(s.f, st.answers || {}); if (!pts.length && !filled(st.takeaway)) return "";
+      return `<h3 style="margin-top:18px"><a href="#/session/${s.id}">${esc(s.t)}</a></h3>${pointsHtml(pts)}${filled(st.takeaway) ? `<div class="qa"><p class="cap">What you wanted to remember</p><p>${esc(st.takeaway).replace(/\n/g, "<br>")}</p></div>` : ""}`;
+    }).join("");
+    return rows ? `<div class="card"><h2>${esc(TRACK[tid].name)}</h2>${rows}</div>` : "";
+  }).join("");
+  return `<a class="back" href="#/progress">← Progress</a><div><h1>Your map</h1><p class="lede">What you have worked out so far, in your own words. A therapist keeps this in your file and reads it before every session. Here you keep it, and it grows each time you finish one.</p></div>
+    ${blocks || `<div class="card"><p>Nothing here yet. It fills in as you work through your sessions.</p><a class="btn" href="#/program">Go to your program</a></div>`}
+    ${blocks ? `<div class="row"><button class="btn ghost" data-act="newChat" data-kind="general">Talk about what you see here with the guide</button></div>` : ""}`;
 };
 
 views.graduate = () => {
@@ -299,18 +423,35 @@ views.explore = () => {
 };
 const firstLine = t => { const v = Object.values(t.answers).find(x => typeof x === "string" && x.trim()); return v ? v.trim().slice(0, 70) : ""; };
 
+function threadSteps(t) {
+  const tool = IW.tools.find(x => x.id === t.tool), base = `threads.${S.threads.indexOf(t)}`, a = t.answers, out = [{ k: "open" }];
+  tool.f.forEach(x => { if (!x.when || x.when(a)) out.push(Object.assign({}, x, { path: x.id ? `${base}.answers.${x.id}` : null })); });
+  if (keyPoints(tool.f, a).length) out.push({ k: "sum" });
+  out.push({ k: "tx", path: `${base}.title`, q: "Give this piece of work a name, so you can find it again." });
+  return out;
+}
 views.thread = id => {
   const ix = S.threads.findIndex(t => t.id === id); if (ix < 0) return views.explore();
-  const t = S.threads[ix], tool = IW.tools.find(x => x.id === t.tool), base = `threads.${ix}`;
-  return `<a class="back" href="#/explore">← Work it through</a>
-    <div><h1>${esc(tool.name)}</h1><p style="margin-top:10px"><span class="tag">${esc(tool.m)}</span></p></div>
-    <p class="lede">${esc(tool.intro)}</p>
+  const t = S.threads[ix], tool = IW.tools.find(x => x.id === t.tool), base = `threads.${ix}`, a = t.answers, pts = keyPoints(tool.f, a), d = `data-kind="thread" data-ref="${t.id}"`;
+  const head = `<div><h1>${esc(tool.name)}</h1><p style="margin-top:10px"><span class="tag">${esc(tool.m)}</span></p></div>`;
+  if (typeof t.at === "number") {
+    const steps = threadSteps(t), at = Math.min(t.at, steps.length - 1);
+    const special = x =>
+      x.k === "open" ? `${head}<div class="card"><p>${esc(tool.intro)}</p>${tool.notfor ? `<p class="muted">${esc(tool.notfor)}</p>` : ""}<p class="muted">One question at a time, each following from what you said before. What you write is kept, so you can stop and come back.</p></div>`
+      : x.k === "sum" ? `<div class="card"><h2 class="q">Here is what you found</h2><p class="muted">Read it back slowly. These are your own words.</p>${pointsHtml(pts)}</div>`
+      : "";
+    return flowScreen({ kind: "thread", ref: t.id, back: `<a class="back" href="#/explore">← Work it through</a>`, eyebrow: at === 0 ? "" : tool.name, home: "#/explore", steps, i: at, f: tool.f, a, special });
+  }
+  const all = recordHtml(tool.f, a);
+  return `<a class="back" href="#/explore">← Work it through</a>${head}${flash()}
     <div class="card"><label class="fld"><span>A name for this, so you can find it again</span><input type="text" data-bind="${base}.title" value="${esc(t.title)}"></label></div>
-    <div class="card">${tool.f.map(f => field(`${base}.answers`, f)).join("")}</div>
+    ${pts.length ? `<div class="card"><h2>What you found</h2>${pointsHtml(pts)}</div>` : ""}
+    ${all ? `<details class="card"${pts.length ? "" : " open"}><summary>Everything you wrote</summary>${all}</details>` : ""}
     <div class="card"><h2>Coming back to it</h2><p class="muted small">Things look different after a few days. Add what you've noticed since.</p>
       ${t.notes.map(n => `<div class="flash"><span class="muted small">${fmtDate(n.t)}</span><br>${esc(n.text).replace(/\n/g, "<br>")}</div>`).join("")}
       <textarea data-bind="U.note" rows="2" aria-label="New note">${esc(U.note)}</textarea><div class="row end"><button class="btn small ghost" data-act="addNote" data-ix="${ix}">Add note</button></div></div>
-    <div class="row between"><button class="btn ghost" data-act="newChat" data-kind="thread" data-ref="${t.id}">Take this to the guide</button><button class="btn danger small" data-act="delThread" data-ix="${ix}">Delete</button></div>`;
+    <div class="row between"><button class="btn ghost" data-act="flowAgain" ${d}>Go back through it</button><button class="btn ghost" data-act="newChat" ${d}>Take this to the guide</button></div>
+    <div class="row end"><button class="btn danger small" data-act="delThread" data-ix="${ix}">Delete</button></div>`;
 };
 
 views.checkin = () => `
@@ -340,6 +481,7 @@ views.progress = () => {
   const delta = (k) => c.length > 1 ? (l[k] - b[k] === 0 ? "no change since you started" : `${Math.abs(l[k] - b[k])} ${l[k] < b[k] ? "lower" : "higher"} than when you started`) : "your starting point";
   const helped = Object.entries(S.sessions).filter(([, v]) => v.helpful >= 7 && v.doneAt).sort((a, b2) => b2[1].helpful - a[1].helpful).slice(0, 5);
   return `<div><h1>Progress</h1></div>${flash()}
+    <a class="card" href="#/map"><h3>Your map</h3><p class="muted">Everything you have worked out so far, in your own words, session by session.</p><span class="go">Read it →</span></a>
     ${l && l.phq >= 20 ? `<div class="card warn"><h3>Please see a doctor or therapist</h3><p>Your latest low-mood score is in the severe range. Use this alongside professional care.</p></div>` : ""}
     ${stuck ? `<div class="card warn"><h3>Time to add a person</h3><p>You've been working for ${Math.floor(weeks)} weeks and your scores haven't come down. That tells you something useful: self-guided work on its own isn't enough for this right now. A therapist, a medication review, or a hormone review if that applies, is the next step. Keep using the tools here alongside it.</p></div>` : ""}
     ${stayedWell() ? `<div class="card soft"><h2>Three steady months</h2><p>Your scores have stayed low since you graduated. You don't need the check-ins any more.</p><button class="btn" data-act="finish">Finish check-ins</button></div>` : ""}
@@ -623,8 +765,10 @@ function contextFor(kind, ref) {
     if (L.shadowWork.reflections && L.shadowWork.reflections.length) out.push(`They have written ${L.shadowWork.reflections.length} shadow-work reflections.`);
   }
   if (S.emdr.length) out.push(`They have done ${S.emdr.length} self-guided EMDR-style session(s) in the app; the most recent target was "${S.emdr[S.emdr.length - 1].target}".`);
-  const dump = (fields, answers) => fields.filter(f => f[1] !== "br").map(f => { const v = answers[f[0]]; return v == null || v === "" || (Array.isArray(v) && !v.length) ? null : `- ${f[2]} ${Array.isArray(v) ? v.join(", ") : v}`; }).filter(Boolean).join("\n");
-  if (kind === "session" && SES[ref]) { const { s, t } = SES[ref]; out.push(`They opened this conversation from the session "${s.t}" (${t.name}; ${s.m}). What they wrote in it:\n${dump(s.f, A(ref)) || "(nothing yet)"}`); }
+  const dump = (fields, answers) => asked(fields, answers).map(f => `- ${txt(f.q, answers)} ${shown(f, answers[f.id])}`).join("\n");
+  const map = plan().map(s => { const st = S.sessions[s.id]; if (!st || s.id === ref) return ""; const pts = keyPoints(s.f, st.answers || {}); if (!pts.length && !st.takeaway) return ""; return `${s.t}: ${pts.map(p => p[0] + ": " + p[1]).join(" | ")}${st.takeaway ? " | Their takeaway: " + st.takeaway : ""}`; }).filter(Boolean).join("\n");
+  if (map) out.push("What they have worked out in earlier sessions, in their words:\n" + map.slice(0, 9000));
+  if (kind === "session" && SES[ref]) { const { s, t } = SES[ref]; out.push(`They opened this conversation from the session "${s.t}" (${t.name}; ${s.m}). What they wrote in it:\n${dump(s.f, A(ref)) || "(nothing yet)"}${filled((S.sessions[ref] || {}).mind) ? "\nOn their mind coming in: " + S.sessions[ref].mind : ""}`); }
   if (kind === "thread") { const t = S.threads.find(x => x.id === ref); if (t) { const tool = IW.tools.find(x => x.id === t.tool); out.push(`They opened this conversation from the deep-work exercise "${tool.name}" (${tool.m})${t.title ? `, which they titled "${t.title}"` : ""}. What they wrote:\n${dump(tool.f, t.answers) || "(nothing yet)"}${t.notes.length ? "\nLater notes:\n" + t.notes.map(n => `- ${fmtDate(n.t)}: ${n.text}`).join("\n") : ""}`); } }
   return out.join("\n\n");
 }
@@ -684,11 +828,18 @@ const acts = {
   logMood() { const r = $('input[data-bind="U.mood.v"]'); const v = U.mood.v == null ? +r.value : U.mood.v; S.moods.push({ t: Date.now(), v, note: U.mood.note.trim() }); U.mood = { v: null, note: "" }; U.flash = `Logged: ${v} out of 10.`; saveNow(); render(); },
   practised(el) { const id = el.dataset.id; (S.practice[id] = S.practice[id] || []).push(dayKey()); saveNow(); U.keepScroll = true; render(); },
   toggleTrack(el) { const id = el.dataset.id; S.tracks[id] = !S.tracks[id]; saveNow(); U.keepScroll = true; render(); },
-  completeSession(el) {
-    const id = el.dataset.id; S.sessions[id].doneAt = Date.now(); saveNow();
-    if (SES[id].s.graduation) return go("#/graduate");
-    U.keepScroll = true; render();
+  flowNext(el) {
+    const kind = el.dataset.kind, ref = el.dataset.ref, F = flowOf(kind, ref); if (!F) return;
+    const i = Math.min(F.st.at || 0, F.steps.length - 1), s = F.steps[i], stay = msg => { U.flash = msg; U.keepScroll = true; render(); };
+    if (s.k === "sc") { const r = $("#view input[type=range]"); if (r && get(s.path) == null) set(s.path, +r.value); }
+    if (s.k === "one" && !s.optional && !filled(get(s.path))) return stay("Pick the one that fits best. The next question depends on it.");
+    if (s.need && !filled(get(s.path))) return stay("Write a few words first, so the next question has something to work with.");
+    if (s.halt) return;
+    if (i + 1 >= flowOf(kind, ref).steps.length) return F.finish();
+    F.st.at = i + 1; saveNow(); render();
   },
+  flowBack(el) { const F = flowOf(el.dataset.kind, el.dataset.ref); if (!F) return; F.st.at = Math.max(0, Math.min(F.st.at || 0, F.steps.length - 1) - 1); saveNow(); render(); },
+  flowAgain(el) { const F = flowOf(el.dataset.kind, el.dataset.ref); if (!F) return; F.st.at = 0; saveNow(); render(); },
   graduate() { S.stage = "maintenance"; S.graduatedAt = Date.now(); saveNow(); U.flash = "You've graduated. Well done. Your next check-in is in two weeks."; go("#/today"); },
   finish() { S.stage = "graduated"; saveNow(); U.flash = "That's it. You're done."; go("#/today"); },
   resume() { S.stage = "program"; S.graduatedAt = null; saveNow(); go("#/program"); },
@@ -715,7 +866,7 @@ const acts = {
     if (i < 0) { R.i = rescueSteps(f, R).length; return render(); }
     R.a.focus = i; R.i = rescueSteps(f, R).findIndex(s => s.k === "kind"); render();
   },
-  one(el) { const p = el.dataset.path, v = el.dataset.val; set(p, /^-?\d+$/.test(v) ? +v : v); el.parentElement.querySelectorAll(".chip").forEach(b => b.setAttribute("aria-pressed", String(b === el))); },
+  one(el) { const p = el.dataset.path, v = el.dataset.val; set(p, /^-?\d+$/.test(v) ? +v : v); el.parentElement.querySelectorAll(".chip").forEach(b => b.setAttribute("aria-pressed", String(b === el))); if (!p.startsWith("U.")) save(); },
   rescueBack() {
     const R = U.rescue, f = IW.rescues.find(x => x.id === R.id); if (R.i > -1) R.i--;
     const s = rescueSteps(f, R)[R.i];
@@ -724,7 +875,7 @@ const acts = {
     render();
   },
   breathe(el) { startBreath(el.closest(".breather")); },
-  newThread(el) { const t = { id: uid(), tool: el.dataset.tool, title: "", t: Date.now(), answers: {}, notes: [] }; S.threads.push(t); saveNow(); go("#/thread/" + t.id); },
+  newThread(el) { const t = { id: uid(), tool: el.dataset.tool, title: "", t: Date.now(), answers: {}, notes: [], at: 0 }; S.threads.push(t); saveNow(); go("#/thread/" + t.id); },
   addNote(el) { const tx = U.note.trim(); if (!tx) return; S.threads[+el.dataset.ix].notes.push({ t: Date.now(), text: tx }); U.note = ""; saveNow(); U.keepScroll = true; render(); },
   delThread(el) { if (!confirm("Delete this piece of work? This can't be undone.")) return; S.threads.splice(+el.dataset.ix, 1); saveNow(); go("#/explore"); },
   newChat(el) {
@@ -893,7 +1044,7 @@ function startBreath(box) {
 }
 
 /* ---------- router ---------- */
-const TAB = { intake: "today", vision: "vision", journal: "journal", shadow: "shadow", emdr: "explore", today: "today", rescue: "today", program: "program", session: "program", graduate: "progress", explore: "explore", thread: "explore", guide: "guide", progress: "progress", checkin: "progress" };
+const TAB = { intake: "today", vision: "vision", journal: "journal", shadow: "shadow", emdr: "explore", today: "today", rescue: "today", program: "program", session: "program", graduate: "progress", explore: "explore", thread: "explore", guide: "guide", progress: "progress", map: "progress", checkin: "progress" };
 function render() {
   stopTimers();
   const parts = (location.hash.replace(/^#\/?/, "") || "today").split("/");

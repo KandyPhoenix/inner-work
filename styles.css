@@ -208,6 +208,14 @@ ul.plain li + li { margin-top: 7px; }
 .bgpick i.drawn { background: linear-gradient(180deg, #d3e8cc, #5b9670 55%, #173a2a); }
 .bgpick i.photo { background: repeating-linear-gradient(45deg, var(--soft) 0 8px, transparent 8px 16px); border: 1.5px dashed var(--muted); }
 
+.card h2.q { font-size: 1.3rem; line-height: 1.34; margin-bottom: 12px; text-wrap: pretty; }
+.card h2.q + p { margin-top: 0; }
+.cap { font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 5px; }
+.qa { padding: 12px 0; border-top: 1px solid var(--line); }
+.qa:first-of-type { border-top: 0; }
+.qa p { margin: 0; }
+details.card > summary { cursor: pointer; font-family: var(--serif); font-weight: 600; font-size: 1.07rem; }
+details.card[open] > summary { margin-bottom: 8px; }
 blockquote.about { margin: 0 0 14px; padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--soft); border-radius: 0 10px 10px 0; font-family: var(--serif); font-size: 1.05rem; }
 .card > blockquote.about + * { margin-top: 0; }
 
