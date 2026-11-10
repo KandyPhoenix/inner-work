@@ -14,7 +14,7 @@ It is also published with GitHub Pages from the `main` branch, the same way Synt
 
 ## What's in it
 
-- **Program**: 51 therapy sessions in 12 areas (`js/content-program.js`). Intake picks the areas; add or remove any on the Program tab.
+- **Program**: 51 therapy sessions in 12 areas (`js/content-program.js`). Each one runs as a guided dialogue, one question at a time, with later questions depending on earlier answers (`js/content-flows-a.js`, `js/content-flows-b.js`). Intake picks the areas; add or remove any on the Program tab.
 - **Mood rescues**: 10 short guided sequences for the state you're in right now (`js/content-tools.js`).
 - **Deeper**: 7 tools for problems that aren't shifting, plus EMDR-style processing (calm place, and the full target → sets → new belief → body scan → close sequence, with a left-right dot and sound).
 - **Shadow, Journal, Vision**: Shadow Work with the 48-question archetype assessment, the Manifestation Journal, and the Vision Board with the moon phase. These were moved here from the Synthesis app. Their code is `js/life.js` (copied unchanged from Synthesis `premium-features.js`), their data `js/life-data.js`, their styles `life-base.css`. The moon phase is now worked out from today's date.

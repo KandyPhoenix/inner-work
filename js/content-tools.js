@@ -164,94 +164,23 @@ IW.work = {
   ]
 };
 
-/* ---------- Deep-work tools: for what isn't shifting, and for finding answers ---------- */
+/* ---------- Deep-work tools: for what isn't shifting, and for finding answers ----------
+   The guided dialogue for each tool is in content-flows-b.js. */
 IW.tools = [
   { id: "stuck", name: "Untangle something that isn't getting better", m: "Formulation · solution-focused therapy",
-    intro: "For a problem you've had for a while. This lays out what is holding it in place, which is rarely what it looks like from inside.",
-    f: [
-      ["problem", "ta", "The problem, in a sentence or two"],
-      ["began", "ta", "How long has it been going on? What was happening in your life when it started?"],
-      ["tried", "ta", "What have you tried? What helped a little, and what made no difference?"],
-      ["keeps", "ta", "What keeps it going? Things you do, avoid or tell yourself; things other people do."],
-      ["protects", "ta", "Honestly, with no blame: what does this problem get you out of, or protect you from?"],
-      ["exceptions", "ta", "When is it absent or weaker? What is different at those times?"],
-      ["ten", "ta", "If it were 10% better, what would you be doing differently?"],
-      ["experiment", "ta", "One small experiment for this week"]
-    ] },
+    intro: "For a problem you've had for a while. This lays out what is holding it in place, which is rarely what it looks like from inside." },
   { id: "immunity", name: "Why can't I change this?", m: "Immunity to change",
-    intro: "When you truly want to change and keep not changing, part of you is committed to something else. This finds what.",
-    f: [
-      ["want", "ta", "The change you really want to make"],
-      ["instead", "ta", "What you actually do, or don't do, that works against it. Be thorough."],
-      ["fear", "ta", "Imagine doing the opposite of each of those. What worry or dread comes up?"],
-      ["hidden", "ta", "So you are also committed to… (for example: never being rejected, never looking foolish, not losing control)"],
-      ["assume", "ta", "The big assumption underneath: 'I assume that if I ___, then ___.'"],
-      ["learned", "ta", "Where did you learn that assumption?"],
-      ["true", "sc", "How true does it feel? (0 = not at all, 10 = completely)"],
-      ["test", "ta", "A small, safe way to test whether it's still true"]
-    ] },
+    intro: "When you truly want to change and keep not changing, part of you is committed to something else. This finds what." },
   { id: "root", name: "Follow it down to the root", m: "Downward arrow · schema therapy",
-    intro: "For a reaction that is bigger than the situation deserves. You follow the thought down until you reach the belief that powers it, then look at where that belief came from.",
-    f: [
-      ["situation", "ta", "What set it off?"],
-      ["thought", "ta", "What went through your mind?"],
-      ["mean1", "ta", "If that were true, what would it mean about you?"],
-      ["mean2", "ta", "And if that were true, what would that mean?"],
-      ["mean3", "ta", "And what is the worst part of that?"],
-      ["core", "tx", "The belief at the bottom, in a few words"],
-      ["earliest", "ta", "The earliest time you remember feeling this"],
-      ["taught", "ta", "Who or what taught it to you?"],
-      ["child", "ta", "What couldn't a child have known or understood back then?"],
-      ["doesntfit", "ta", "What in your adult life doesn't fit this belief?"],
-      ["updated", "ta", "A belief you're willing to try on instead"]
-    ] },
+    intro: "For a reaction that is bigger than the situation deserves. You follow the thought down until you reach the belief that powers it, then look at where that belief came from." },
   { id: "pattern", name: "Find the pattern across your life", m: "Psychodynamic · narrative therapy",
-    intro: "For the thing that keeps happening with different people and in different places. Seeing the pattern is what makes the choice point visible.",
-    f: [
-      ["happens", "ta", "What keeps happening?"],
-      ["times", "ta", "Three times it has happened, earliest first"],
-      ["common", "ta", "What do they have in common? The kind of person, the part you played, how it ended."],
-      ["felt", "ta", "What did you feel each time?"],
-      ["first", "ta", "What was the first relationship in which you felt that?"],
-      ["hoping", "ta", "What do you keep hoping will turn out differently this time?"],
-      ["mypart", "ta", "What do you do, without meaning to, that helps it happen again?"],
-      ["choice", "ta", "Where is the choice point, and what is a different move?"],
-      ["title", "tx", "A title for the new version of this story"]
-    ] },
+    intro: "For the thing that keeps happening with different people and in different places. Seeing the pattern is what makes the choice point visible." },
   { id: "part", name: "Talk with a part of you", m: "Internal Family Systems-informed",
-    intro: "For when you're torn, or when something in you keeps taking over. Speak to that part as you would to a person, and write what comes back.",
-    f: [
-      ["which", "tx", "Which part? Give it a name."],
-      ["where", "tx", "Where do you feel it in your body?"],
-      ["toward", "ta", "How do you feel toward it? (If the answer is irritated or ashamed, that's another part. Ask it to step back for a moment.)"],
-      ["job", "ta", "Ask it: what is your job? Write what it says."],
-      ["since", "ta", "How long have you been doing this? How old do you think I am?"],
-      ["fear", "ta", "What are you afraid would happen if you stopped?"],
-      ["protect", "ta", "Who or what are you protecting?"],
-      ["need", "ta", "What do you need from me?"],
-      ["say", "ta", "What do you want to say to it?"]
-    ] },
+    intro: "For when you're torn, or when something in you keeps taking over. Speak to that part as you would to a person, and write what comes back." },
   { id: "accept", name: "Change it, or make peace with it?", m: "Acceptance and commitment therapy · radical acceptance",
-    intro: "For something you've fought for a long time. This separates what you can still move from what you can't, and works on the second.",
-    f: [
-      ["what", "ta", "The situation"],
-      ["tried", "ta", "What have you tried, and for how long?"],
-      ["control", "ta", "What is in your control?"],
-      ["influence", "ta", "What can you influence but not control?"],
-      ["outside", "ta", "What is outside your control?"],
-      ["feel", "ta", "If you stopped fighting the last part, what would you have to feel?"],
-      ["cost", "ta", "What does the fight cost you?"],
-      ["possible", "ta", "Given how things are, what is still possible?"],
-      ["willing", "ta", "'I don't like it, I didn't choose it, and I am willing to ___.'"]
-    ] },
+    intro: "For something you've fought for a long time. This separates what you can still move from what you can't, and works on the second." },
   { id: "letter", name: "The unsent letter", m: "Expressive writing · empty-chair work",
-    intro: "For what you never got to say, to someone living or dead, or to a part of your own past. It will not be sent, so hold nothing back.",
-    f: [
-      ["to", "tx", "Who is it to?"],
-      ["letter", "ta", "The letter"],
-      ["reply", "ta", "If they could truly hear you, what would they say?"],
-      ["now", "ta", "Now that it's out, what do you need?"]
-    ] }
+    intro: "For what you never got to say, to someone living or dead, or to a part of your own past. It will not be sent, so hold nothing back." }
 ];
 
 /* ---------- Safety plan (Stanley-Brown format) ---------- */
