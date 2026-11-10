@@ -13,7 +13,7 @@ const sum = a => a.reduce((x, y) => x + y, 0);
 const paras = t => String(t).split(/\n{2,}/).map(p => `<p>${esc(p.trim()).replace(/\n/g, "<br>")}</p>`).join("");
 
 /* ---------- state ---------- */
-const blank = () => ({ v: 1, profile: null, tracks: {}, sessions: {}, practice: {}, moods: [], checkins: [], rescues: [], threads: [], chats: [], safety: {}, stage: "intake", graduatedAt: null, life: null, emdr: [], calm: null, settings: { apiKey: "", bls: "both" } });
+const blank = () => ({ v: 1, profile: null, tracks: {}, sessions: {}, practice: {}, moods: [], checkins: [], rescues: [], threads: [], chats: [], safety: {}, stage: "intake", graduatedAt: null, life: null, emdr: [], calm: null, talk: {}, settings: { apiKey: "", bls: "both" } });
 function load() {
   try { const raw = localStorage.getItem(KEY); if (raw) { const d = JSON.parse(raw); return Object.assign(blank(), d, { settings: Object.assign({ apiKey: "", bls: "both" }, d.settings) }); } } catch (e) { /* start fresh */ }
   return blank();
@@ -26,7 +26,7 @@ const save = () => { dirty = true; clearTimeout(saveTimer); saveTimer = setTimeo
 addEventListener("pagehide", () => { if (dirty) saveNow(); });
 
 /* transient UI state, never stored */
-const U = { emdr: null, intake: { step: 0, name: "", why: "", concerns: [] }, check: { phq: [], gad: [] }, mood: { v: null, note: "" }, rescue: null, draft: "", note: "", flash: "", sending: false, keepScroll: false, fromCheck: false };
+const U = { emdr: null, intake: { step: 0, name: "", why: "", concerns: [] }, check: { phq: [], gad: [] }, mood: { v: null, note: "" }, rescue: null, draft: "", note: "", flash: "", reply: "", handoff: "", sending: false, keepScroll: false, fromCheck: false };
 
 const rootOf = path => path.startsWith("U.") ? [U, path.slice(2)] : [S, path];
 function get(path) { const [o, p] = rootOf(path); return p.split(".").reduce((a, k) => (a == null ? undefined : a[k]), o); }
@@ -226,9 +226,86 @@ function stepCard(s, f, a) {
 function flowScreen(o) {
   const s = o.steps[o.i], n = o.steps.length, d = `data-kind="${o.kind}" data-ref="${o.ref}"`;
   return `${o.back}${o.eyebrow ? `<p class="eyebrow">${esc(o.eyebrow)}${s.phase ? " · " + esc(s.phase) : ""}</p>` : ""}<div class="bar"><i style="width:${n > 1 ? 100 * o.i / (n - 1) : 100}%"></i></div>${flash()}
-    ${o.special(s) || stepCard(s, o.f, o.a)}
+    ${o.special(s) || stepCard(s, o.f, o.a)}${guideCards(o, s)}
     <div class="row between">${o.i > 0 ? `<button class="btn quiet" data-act="flowBack" ${d}>Back</button>` : "<span></span>"}${s.halt ? `<a class="btn" href="${o.home}">Leave it for today</a>` : `<button class="btn" data-act="flowNext" ${d}>${o.i === n - 1 ? "Finish" : s.k === "open" ? "Begin" : "Next"}</button>`}</div>
     ${s.k === "open" ? "" : `<div class="row between"><span class="small">It keeps your place if you need to stop.</span><button class="btn quiet small" data-act="newChat" ${d}>Stuck? Talk it through with the guide</button></div>`}`;
+}
+/* ---------- the guide inside a session ----------
+   With an API key set, the guide answers each written reply the way a therapist would before the
+   next question is asked, and writes a summing-up at the end. Its words are kept on this device
+   only (S.talk, never uploaded). Only the text is stored; the full reply the API returned is held
+   in memory while that step is open, so a follow-up continues the same conversation. */
+const guideOn = () => !!S.settings.apiKey && S.settings.inline !== false;
+const stepField = s => s.id || "_" + s.path.split(".").pop();
+const talkKey = (kind, ref, s) => `${kind}:${ref}:${stepField(s)}`;
+const talks = s => guideOn() && !!s.path && s.talk !== false && (s.k === "ta" || (s.k === "tx" && (s.need || s.talk)));
+const LIVE = {}, BUSY = {}, TALKVIEW = {};
+const hash = t => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return String(h); };
+const guideLine = () => guideOn() ? `<p class="muted">Your guide is on. It will respond briefly to what you write as you go, and you can answer back or carry on.</p>` : S.settings.apiKey ? `<p class="muted">Your guide's replies during sessions are turned off. You can turn them on in Settings.</p>` : "";
+function transcript(kind, ref, steps, upto) {
+  let head;
+  if (kind === "session") { const { s, t } = SES[ref]; head = `Session: “${s.t}” (${t.name}; ${s.m}).\nWhat the session taught at the start:\n${s.learn.join("\n")}`; }
+  else { const th = S.threads.find(x => x.id === ref), tool = IW.tools.find(x => x.id === th.tool); head = `Deeper exercise: “${tool.name}” (${tool.m}). ${tool.intro}`; }
+  const a = flowOf(kind, ref).st.answers || {};
+  const qa = steps.slice(0, upto).filter(x => x.path && filled(get(x.path))).map(x => `Q: ${txt(x.q, a)}\nA: ${shown(x, get(x.path))}${x.k === "sc" ? ` out of 10 (0 = ${x.lo || "0"}, 10 = ${x.hi || "10"})` : ""}`).join("\n\n");
+  return head + (qa ? "\n\nWhat they have written so far, in order:\n\n" + qa : "");
+}
+function askText(kind, ref, steps, i) {
+  const s = steps[i], a = flowOf(kind, ref).st.answers || {}, nx = steps[i + 1], hint = [].concat(txt(s.p, a) || []).join(" ");
+  const next = !nx ? "(nothing: this was the last question)" : nx.k === "learn" ? "(the session moves on to its teaching part)" : nx.k === "sum" ? "(the session sums up what they worked out)"
+    : nx.k === "practice" ? "(the session moves on to planning the practice between sessions)" : nx.k === "say" ? `${txt(nx.q, a)} ${[].concat(txt(nx.p, a) || []).join(" ")}` : txt(nx.q, a);
+  return `${transcript(kind, ref, steps, i)}\n\nThe question they were just asked:\n${txt(s.q, a)}${hint ? `\n(The prompt shown under it: ${hint})` : ""}\n\nTheir answer:\n${String(get(s.path)).trim()}\n\nWhat the session will ask or say next:\n${next}`;
+}
+function refreshTalk(key) {
+  const el = $(`[data-talk="${key}"]`); if (!el || !TALKVIEW[key]) return;
+  el.outerHTML = TALKVIEW[key](); const now = $(`[data-talk="${key}"]`); if (now) now.querySelectorAll("textarea").forEach(grow);
+}
+async function guideSay(key) {
+  const T = S.talk[key]; if (!T || key in BUSY) return;
+  const [kind, ref, field] = key.split(":"), F = flowOf(kind, ref); if (!F) return;
+  const steps = F.steps, i = field === "sum" ? steps.findIndex(x => x.k === "sum") : steps.findIndex(x => x.path && stepField(x) === field); if (i < 0) return;
+  const ask = field === "sum" ? `${transcript(kind, ref, steps, i)}\n\n${IW.sumAsk}` : askText(kind, ref, steps, i);
+  // A follow-up continues the same conversation when the earlier replies are still in memory.
+  // After a reload they are not, so the exchange so far is folded into one message instead.
+  const live = LIVE[key] || [], whole = T.msgs.filter(m => m.role === "assistant").length === live.length; let n = 0;
+  const messages = whole ? [{ role: "user", content: ask }, ...T.msgs.map(m => m.role === "assistant" ? { role: "assistant", content: live[n++] } : { role: "user", content: m.text })]
+    : [{ role: "user", content: `${ask}\n\nThe exchange so far about this answer:\n\n${T.msgs.map(m => (m.role === "assistant" ? "Guide: " : "Them: ") + m.text).join("\n\n")}\n\nReply to their last message.` }];
+  BUSY[key] = ""; delete T.note; refreshTalk(key);
+  try {
+    const { askGuide } = await import("./guide.js");
+    const res = await askGuide({ apiKey: S.settings.apiKey, model: MODEL, effort: "low", system: IW.inlinePrompt + "\n\n" + contextFor("inline", kind === "session" ? ref : null), messages,
+      onText: d => { BUSY[key] += d; const box = $(`[data-talk="${key}"] .stream`); if (box) box.innerHTML = paras(BUSY[key]); } });
+    const text = res.content.filter(b => b.type === "text").map(b => b.text).join("\n\n").trim();
+    if (res.refused || !text) T.note = "The guide wasn't able to respond to that. You can carry on with the session. If you're in crisis, use Help now at the top of the screen.";
+    else { T.msgs.push({ role: "assistant", text }); if (whole) (LIVE[key] = LIVE[key] || []).push(res.content); }
+  } catch (err) { T.note = err.userMessage || "The guide couldn't reply just now."; }
+  delete BUSY[key]; saveNow(); refreshTalk(key);
+}
+function askAbout(kind, ref, s) {
+  const key = talkKey(kind, ref, s);
+  S.talk[key] = { for: String(get(s.path)).trim(), msgs: [] }; delete LIVE[key]; saveNow(); guideSay(key); return key;
+}
+function sumUp(kind, ref) {
+  const key = `${kind}:${ref}:sum`, steps = flowOf(kind, ref).steps, i = steps.findIndex(x => x.k === "sum"); if (i < 0) return;
+  const h = hash(transcript(kind, ref, steps, i)), T = S.talk[key];
+  if (T && T.for === h && T.msgs.length) return;
+  S.talk[key] = { for: h, msgs: [] }; delete LIVE[key]; saveNow(); guideSay(key);
+}
+function talkCard(key, o = {}) {
+  const T = S.talk[key]; if (!T) return "";
+  TALKVIEW[key] = () => talkCard(key, o);
+  const busy = key in BUSY, turns = T.msgs.filter(m => m.role === "assistant").length;
+  return `<div class="card soft talk" data-talk="${key}"><p class="cap">${o.cap || "Your guide"}${o.stale && o.stale() ? " · about your earlier answer" : ""}</p>
+    ${T.msgs.map(m => m.role === "assistant" ? paras(m.text) : said(m.text, "You said")).join("")}
+    ${busy ? `<div class="stream">${BUSY[key] ? paras(BUSY[key]) : `<p class="muted">Reading what you wrote…</p>`}</div>` : ""}
+    ${T.note && !busy ? `<p class="muted small">${esc(T.note)}</p><div class="row"><button class="btn small ghost" data-act="talkRetry" data-key="${key}">Try again</button></div>` : ""}
+    ${o.reply && !busy && turns > 0 && turns < 4 && !T.note && guideOn() ? `<label class="fld"><span class="small muted" style="font-weight:500">Answer back if you want to, or carry on with Next.</span><textarea data-bind="U.reply" rows="2" aria-label="Reply to your guide">${esc(U.reply)}</textarea></label><div class="row end"><button class="btn small ghost" data-act="talkReply" data-key="${key}">Send to guide</button></div>` : ""}</div>`;
+}
+function guideCards(o, s) {
+  if (s.k === "sum") return talkCard(`${o.kind}:${o.ref}:sum`, { cap: "What your guide heard" });
+  if (!s.path || (s.k !== "ta" && s.k !== "tx")) return "";
+  const key = talkKey(o.kind, o.ref, s);
+  return talkCard(key, { reply: true, stale: () => S.talk[key].for !== String(get(s.path) || "").trim() });
 }
 function flowOf(kind, ref) {
   if (kind === "session") {
@@ -274,13 +351,13 @@ function sessionSteps(id) {
   if (keyPoints(s.f, a).length) add("Close", { k: "sum" });
   add("Close", { k: "ta", path: `${base}.takeaway`, q: "What is the one thing from today you want to remember?", p: "Put it in a sentence you could say to yourself next week." });
   add("Close", { k: "practice" });
-  add("Close", { k: "ta", path: `${base}.block`, q: "What is most likely to get in the way of the practice, and what will you do when it does?", p: "Naming the obstacle in advance roughly doubles the chance you'll do it." });
+  add("Close", { k: "ta", path: `${base}.block`, q: "What is most likely to get in the way of the practice, and what will you do when it does?", p: "People who name the obstacle in advance, and what they'll do about it, are more likely to follow through.", talk: false });
   add("Close", { k: "sc", path: `${base}.moodAfter`, q: "And how are you now, at the end?", lo: "worst", hi: "best" });
   if (st.moodBefore != null && st.moodAfter != null && st.moodAfter <= st.moodBefore - 2) add("Close", { k: "say", q: "This one stirred something up.",
     p: ["That is common after real work. A session can leave you rawer than it found you, and it usually settles within a day.", "Do something ordinary and kind in the next hour: eat, walk, be near someone. If it stays heavy, use a mood rescue or talk it through with the guide."],
     links: [["#/rescue", "Steady myself"]] });
   add("Close", { k: "sc", path: `${base}.helpful`, q: "How useful was this session to you?", lo: "not at all", hi: "very" });
-  if (st.helpful != null && st.helpful <= 5) add("Close", { k: "ta", path: `${base}.missed`, q: "What didn't fit you, or what did it miss?", p: "A therapist would want to know. Writing it down also tells you what to take to the guide or to a Deeper tool." });
+  if (st.helpful != null && st.helpful <= 5) add("Close", { k: "ta", talk: false, path: `${base}.missed`, q: "What didn't fit you, or what did it miss?", p: "A therapist would want to know. Writing it down also tells you what to take to the guide or to a Deeper tool." });
   return out;
 }
 
@@ -297,7 +374,7 @@ views.session = id => {
   if (st.doneAt && typeof st.at !== "number") {
     const all = recordHtml(s.f, a);
     return `<a class="back" href="#/program">← Program</a>${head}${flash()}
-      ${pts.length ? `<div class="card"><h2>What you worked out</h2>${pointsHtml(pts)}</div>` : ""}
+      ${pts.length ? `<div class="card"><h2>What you worked out</h2>${pointsHtml(pts)}</div>` : ""}${talkCard(`session:${id}:sum`, { cap: "What your guide heard" })}
       ${filled(st.takeaway) ? `<div class="card soft"><h2>What you wanted to remember</h2><p>${esc(st.takeaway).replace(/\n/g, "<br>")}</p></div>` : ""}
       <div class="card"><h2>Between now and next time</h2><p>${esc(s.practice)}</p>${filled(st.when) ? `<p class="muted small">Your plan: ${esc(st.when)}</p>` : ""}</div>
       ${all ? `<details class="card"><summary>Everything you wrote in this session</summary>${all}</details>` : ""}
@@ -309,7 +386,7 @@ views.session = id => {
   const special = x =>
     x.k === "open" ? `${head}${caution ? `<div class="card warn"><h3>Go carefully</h3><p>${esc(caution)}</p></div>` : ""}
         <div class="card"><p>This runs the way a session with a therapist does. You check in, there is something to understand, then the work itself, one question at a time, with each question following from what you said before. It ends by summing up what you found and agreeing what to practise.</p>
-        <p class="muted">Allow 30 to 45 minutes somewhere you won't be interrupted. Write the way you'd talk. You can skip a question, go back, or stop and come back later.</p></div>`
+        <p class="muted">Allow 30 to 45 minutes somewhere you won't be interrupted. Write the way you'd talk. You can skip a question, go back, or stop and come back later.</p>${guideLine()}</div>`
     : x.k === "learn" ? `<div class="card learn"><h2 class="q">First, something to understand</h2>${s.learn.map(y => `<p>${esc(y)}</p>`).join("")}</div>`
     : x.k === "sum" ? `<div class="card"><h2 class="q">Here is what you worked out today</h2><p class="muted">Read it back slowly. These are your own words.</p>${pointsHtml(pts)}</div>`
     : x.k === "practice" ? `<div class="card soft"><h2 class="q">Between now and next time</h2><p>${esc(s.practice)}</p><label class="fld"><span>When and where will you do it? Tie it to something you already do every day.</span><input type="text" data-bind="${base}.when" value="${esc(st.when || "")}"></label></div>`
@@ -445,7 +522,7 @@ views.thread = id => {
   const all = recordHtml(tool.f, a);
   return `<a class="back" href="#/explore">← Work it through</a>${head}${flash()}
     <div class="card"><label class="fld"><span>A name for this, so you can find it again</span><input type="text" data-bind="${base}.title" value="${esc(t.title)}"></label></div>
-    ${pts.length ? `<div class="card"><h2>What you found</h2>${pointsHtml(pts)}</div>` : ""}
+    ${pts.length ? `<div class="card"><h2>What you found</h2>${pointsHtml(pts)}</div>` : ""}${talkCard(`thread:${t.id}:sum`, { cap: "What your guide heard" })}
     ${all ? `<details class="card"${pts.length ? "" : " open"}><summary>Everything you wrote</summary>${all}</details>` : ""}
     <div class="card"><h2>Coming back to it</h2><p class="muted small">Things look different after a few days. Add what you've noticed since.</p>
       ${t.notes.map(n => `<div class="flash"><span class="muted small">${fmtDate(n.t)}</span><br>${esc(n.text).replace(/\n/g, "<br>")}</div>`).join("")}
@@ -517,6 +594,8 @@ views.settings = () => `<div><h1>Settings</h1></div>${flash()}
   ${S.profile ? `<div class="card"><label class="fld"><span>Your name</span><input type="text" data-bind="profile.name" value="${esc(S.profile.name)}"></label></div>` : `<a class="back" href="#/intake">← Back to the start</a>`}
   <div class="card"><h2>The guide</h2><p class="muted small">The guide is Claude, made by Anthropic. To use it you need your own API key from <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a> (Settings → API keys). You pay Anthropic directly for what you use. Paste the key below. It is stored only in this browser and sent only to Anthropic.</p>
     <label class="fld"><span>Anthropic API key</span><input type="password" data-bind="settings.apiKey" value="${esc(S.settings.apiKey)}" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label>
+    <div class="fld"><span>Respond to what I write during sessions</span><div class="chips">${[["on", "On"], ["off", "Off"]].map(o => `<button type="button" class="chip" data-act="inlineSet" data-val="${o[0]}" aria-pressed="${(S.settings.inline !== false) === (o[0] === "on")}">${o[1]}</button>`).join("")}</div>
+      <p class="muted small">Needs the key above. When this is on, each written answer in a session or Deeper tool is sent to Anthropic, along with the rest of that session and a summary of your program, so the guide can reply. It also writes a short summing-up at the end. The guide's replies are kept on this device only.</p></div>
     <p class="muted small">Model: Claude Opus 5.5. If a message is declined by that model's safety filters, the request automatically falls back to another Claude model.</p></div>
   <div class="card"><h2>Your data</h2><p class="muted small">Everything you write is stored in this browser on this device. Unless you sign in below, it is stored nowhere else, and clearing your browser data erases it, so save a backup now and then. The backup file contains everything you've written; your API key is left out.</p>
     <div class="row"><button class="btn small ghost" data-act="export">Save a backup</button><label class="btn small ghost" style="cursor:pointer">Restore from backup<input type="file" accept="application/json,.json" data-act-change="import" hidden></label><button class="btn small danger" data-act="reset">Erase everything</button></div></div>
@@ -531,11 +610,18 @@ views.settings = () => `<div><h1>Settings</h1></div>${flash()}
   <p class="muted small">Inner Work is a self-help tool. It is not medical care and does not replace a doctor or therapist.</p>`;
 
 views.guide = id => {
-  if (!S.settings.apiKey) return `<div><h1>Your guide</h1><p class="lede">Someone to think out loud with. The guide knows the program, has read what you've chosen to bring, and helps you go deeper than a form can.</p></div>
-    <div class="card"><h2>Set it up</h2><p>The guide is Claude, made by Anthropic. It needs an API key, which you get from <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a>. You pay Anthropic directly for what you use; a long conversation costs a few cents.</p>
+  if (!S.settings.apiKey) {
+    const from = id && S.chats.find(c => c.id === id);
+    return `<div><h1>Your guide</h1><p class="lede">Someone to think out loud with. The guide knows the program, has read what you've chosen to bring, and helps you go deeper than a form can.</p></div>${flash()}
+    <div class="card"><h2>Use the Claude app you already have</h2><p>If you pay for Claude, you can have this conversation there at no extra cost. This copies the guide's instructions and ${from && from.about ? `your notes from “${esc(from.about)}”` : "a summary of your work here"}, ready to paste into a new chat.</p>
+      <div class="row"><button class="btn" data-act="copyForClaude" data-id="${from ? from.id : ""}">Copy for Claude</button><a class="btn ghost" href="https://claude.ai/new" target="_blank" rel="noopener">Open Claude</a></div>
+      ${U.handoff ? `<label class="fld"><span>Copying didn't work here. Select all of this and copy it yourself.</span><textarea rows="6" readonly>${esc(U.handoff)}</textarea></label>` : ""}
+      <p class="muted small">This app sends nothing anywhere when you do this. The text goes to your clipboard and you choose where to paste it. It includes what you wrote in the app, so paste it only into your own Claude.</p></div>
+    <div class="card"><h2>Or have the guide inside this app</h2><p>Then it can also respond to each answer during a session. A Claude subscription and the Claude API are billed separately by Anthropic, and an outside app like this one can only connect through the API. That takes an API key from <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a>, and you pay Anthropic for what you use.</p>
       <label class="fld"><span>Paste your Anthropic API key</span><input type="password" data-bind="settings.apiKey" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label>
       <div class="row end"><button class="btn" data-act="rerender">Save</button></div>
       <p class="muted small">The key stays in this browser. When you talk to the guide, your messages and a summary of your program are sent to Anthropic to get a reply. Nothing else leaves this device. Everything else in the app works without it.</p></div>`;
+  }
   const chat = id && S.chats.find(c => c.id === id);
   if (!chat) {
     S.chats = S.chats.filter(c => c.msgs.length);
@@ -835,10 +921,26 @@ const acts = {
     if (s.k === "one" && !s.optional && !filled(get(s.path))) return stay("Pick the one that fits best. The next question depends on it.");
     if (s.need && !filled(get(s.path))) return stay("Write a few words first, so the next question has something to work with.");
     if (s.halt) return;
+    // With the guide on, the first Next on a written answer brings the guide's reply; the second moves on.
+    if (talks(s) && filled(get(s.path))) {
+      const T = S.talk[talkKey(kind, ref, s)];
+      if (!T || T.for !== String(get(s.path)).trim()) { const key = askAbout(kind, ref, s); U.reply = ""; U.keepScroll = true; render(); const c = $(`[data-talk="${key}"]`); if (c) c.scrollIntoView({ block: "nearest", behavior: "smooth" }); return; }
+    }
+    U.reply = "";
     if (i + 1 >= flowOf(kind, ref).steps.length) return F.finish();
-    F.st.at = i + 1; saveNow(); render();
+    F.st.at = i + 1; saveNow();
+    if (guideOn() && flowOf(kind, ref).steps[F.st.at].k === "sum") sumUp(kind, ref);
+    render();
   },
-  flowBack(el) { const F = flowOf(el.dataset.kind, el.dataset.ref); if (!F) return; F.st.at = Math.max(0, Math.min(F.st.at || 0, F.steps.length - 1) - 1); saveNow(); render(); },
+  talkReply(el) { const key = el.dataset.key, T = S.talk[key], text = (U.reply || "").trim(); if (!T || !text) return; T.msgs.push({ role: "user", text }); U.reply = ""; saveNow(); guideSay(key); },
+  talkRetry(el) { const key = el.dataset.key; if (S.talk[key]) guideSay(key); },
+  inlineSet(el) { S.settings.inline = el.dataset.val === "on"; saveNow(); U.keepScroll = true; render(); },
+  copyForClaude(el) {
+    const c = S.chats.find(x => x.id === el.dataset.id), text = IW.handoff(c ? c.sys : contextFor("general"));
+    const done = ok => { U.flash = ok ? "Copied. Open Claude, start a new chat and paste." : ""; U.handoff = ok ? "" : text; U.keepScroll = true; render(); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => done(true), () => done(false)); else done(false);
+  },
+  flowBack(el) { const F = flowOf(el.dataset.kind, el.dataset.ref); if (!F) return; U.reply = ""; F.st.at = Math.max(0, Math.min(F.st.at || 0, F.steps.length - 1) - 1); saveNow(); render(); },
   flowAgain(el) { const F = flowOf(el.dataset.kind, el.dataset.ref); if (!F) return; F.st.at = 0; saveNow(); render(); },
   graduate() { S.stage = "maintenance"; S.graduatedAt = Date.now(); saveNow(); U.flash = "You've graduated. Well done. Your next check-in is in two weeks."; go("#/today"); },
   finish() { S.stage = "graduated"; saveNow(); U.flash = "That's it. You're done."; go("#/today"); },
@@ -877,7 +979,7 @@ const acts = {
   breathe(el) { startBreath(el.closest(".breather")); },
   newThread(el) { const t = { id: uid(), tool: el.dataset.tool, title: "", t: Date.now(), answers: {}, notes: [], at: 0 }; S.threads.push(t); saveNow(); go("#/thread/" + t.id); },
   addNote(el) { const tx = U.note.trim(); if (!tx) return; S.threads[+el.dataset.ix].notes.push({ t: Date.now(), text: tx }); U.note = ""; saveNow(); U.keepScroll = true; render(); },
-  delThread(el) { if (!confirm("Delete this piece of work? This can't be undone.")) return; S.threads.splice(+el.dataset.ix, 1); saveNow(); go("#/explore"); },
+  delThread(el) { if (!confirm("Delete this piece of work? This can't be undone.")) return; const gone = S.threads[+el.dataset.ix]; Object.keys(S.talk).forEach(k => { if (k.startsWith(`thread:${gone.id}:`)) delete S.talk[k]; }); S.threads.splice(+el.dataset.ix, 1); saveNow(); go("#/explore"); },
   newChat(el) {
     const kind = el.dataset.kind, ref = el.dataset.ref;
     let about = "", draft = "";
@@ -950,8 +1052,8 @@ function setSync(text, redraw) {
 function applyCloud(c, msg) {
   let data; try { data = JSON.parse(c.json); } catch (e) { return setSync("Sync error"); }
   if (hasContent(S)) { try { localStorage.setItem(KEY + ".before-sync", JSON.stringify(S)); } catch (e) { /* no room for the spare copy */ } }
-  const chats = S.chats, apiKey = S.settings.apiKey;
-  S = Object.assign(blank(), data); S.chats = chats; S.settings = Object.assign({ bls: "both" }, data.settings, { apiKey }); S._updatedAt = c.updatedAt; ensureLife(); window.IWScene.set(bgChoice());
+  const chats = S.chats, talk = S.talk, inline = S.settings.inline, apiKey = S.settings.apiKey;
+  S = Object.assign(blank(), data); S.chats = chats; S.talk = talk || {}; S.settings = Object.assign({ bls: "both" }, data.settings, { apiKey }, inline === undefined ? {} : { inline }); S._updatedAt = c.updatedAt; ensureLife(); window.IWScene.set(bgChoice());
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ }
   setSync(msg);
   if (!typing()) { U.keepScroll = true; render(); }
@@ -959,7 +1061,7 @@ function applyCloud(c, msg) {
 async function pushCloud() {
   if (!sync.user) return;
   try {
-    const copy = clone(S); copy.chats = []; copy.settings = { bls: copy.settings.bls, bg: copy.settings.bg };
+    const copy = clone(S); copy.chats = []; copy.talk = {}; copy.settings = { bls: copy.settings.bls, bg: copy.settings.bg };
     await cloudRef().set({ json: JSON.stringify(copy), updatedAt: S._updatedAt || Date.now(), v: 1 });
     setSync("saved " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
   } catch (e) { setSync("couldn't save online just now"); }

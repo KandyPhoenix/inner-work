@@ -16,12 +16,12 @@ function explain(err) {
 /* Sends the whole conversation and streams the reply.
    Returns { content, refused }. `content` is the full content array, which the app stores and
    sends back unchanged on later turns (it can include thinking blocks the API expects to see again). */
-export async function askGuide({ apiKey, model, system, messages, onText }) {
+export async function askGuide({ apiKey, model, system, messages, onText, effort = "medium" }) {
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
   const base = {
     model,
     max_tokens: 64000,
-    output_config: { effort: "medium" },
+    output_config: { effort },
     cache_control: { type: "ephemeral" },
     system,
     messages
