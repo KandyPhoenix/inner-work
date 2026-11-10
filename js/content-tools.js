@@ -49,24 +49,25 @@ IW.rescues = [
       { k: "say", h: "This is a low. It will lift.", p: "Low mood tells you it has always been like this and always will be. That is the mood talking. You are not trying to feel good in the next ten minutes, only one point better." },
       { k: "pick", h: "Change your body first. Pick one and do it now, then come back.", opts: ["Stand up and stretch", "Cold water on my face", "Step outside for five minutes", "Have a shower", "Walk for ten minutes", "Put on music and move"] },
       { k: "ask", id: "weight", h: "What is weighing on you most? One sentence." },
-      { k: "ask", id: "friend", h: "What is the kindest thing a good friend could say about that which is also true?" },
-      { k: "pick", h: "One small thing for the next hour.", opts: ["Finish one tiny task", "Message someone", "Make something to eat", "Tidy one surface", "Sit in daylight", "Do something I used to enjoy for ten minutes"] }
+      { k: "kind", item: "weight" },
+      { k: "work", item: "weight" },
+      { k: "pick", h: "One small kindness to yourself in the next hour.", opts: ["Something warm to eat or drink", "Message someone", "Sit in daylight", "Ten minutes of something I used to enjoy", "Lie down for twenty minutes", "Tidy one small surface"] }
     ] },
   { id: "anxious", name: "Anxious, wound up or panicky", line: "Bring the alarm down, then think.",
     steps: [
       { k: "breathe", h: "Breathe out longer than you breathe in.", secs: 90 },
       { k: "say", h: "Come into the room.", p: "Name five things you can see. Four you can touch. Three you can hear. Two you can smell. One you can taste. Go slowly." },
       { k: "ask", id: "predict", h: "What is your mind predicting will happen?" },
-      { k: "ask", id: "likely", h: "What is most likely to happen? And if the worst did, how would you cope?" },
+      { k: "ask", id: "likely", echo: "predict", h: "What is most likely to happen? And if the worst did, how would you cope?" },
       { k: "pick", h: "What does this need?", opts: ["There's a step I can take now", "It can wait for my worry time", "It's a 'what if': I'll let it be"] }
     ] },
-  { id: "overwhelmed", name: "Overwhelmed, too much", line: "Get it out of your head and shrink it.",
+  { id: "overwhelmed", name: "Too much on my mind", line: "Get it out, then take it one piece at a time.",
     steps: [
       { k: "breathe", h: "One minute first.", secs: 60 },
-      { k: "ask", id: "dump", h: "Empty your head. Everything that's on you, in any order." },
-      { k: "say", h: "Now sort.", p: "Look at that list. Most of it does not have to happen today. Find only what truly must." },
-      { k: "ask", id: "next", h: "The one next thing, small enough to do in ten minutes." },
-      { k: "ask", id: "drop", h: "What can you drop, delay or hand to someone else?" }
+      { k: "list", id: "items", h: "What is on your mind?", p: "Put each thing on its own line. Feelings, worries, things you can't change, things to do: all of it counts. Don't sort it yet." },
+      { k: "focus", list: "items", h: "Which one is heaviest right now?" },
+      { k: "kind", list: "items" },
+      { k: "work", list: "items" }
     ] },
   { id: "angry", name: "Angry, irritable or raging", line: "Discharge it before you reply.",
     steps: [
@@ -74,14 +75,14 @@ IW.rescues = [
       { k: "pick", h: "Burn off the charge. Pick one and do it now.", opts: ["Cold water on face and wrists", "Fast walk or stairs", "Push hard against a wall", "Shake out arms and legs", "Ten long slow out-breaths"] },
       { k: "breathe", h: "Slow it down.", secs: 60 },
       { k: "ask", id: "line", h: "What line was crossed, or what need of yours is being ignored?" },
-      { k: "ask", id: "want", h: "What do you actually want to happen? What response would get you there?" }
+      { k: "ask", id: "want", echo: "line", h: "What do you actually want to happen? What response would get you there?" }
     ] },
   { id: "shame", name: "Ashamed, attacking myself", line: "Turn toward yourself.",
     steps: [
       { k: "say", h: "Shame tells you to hide. Stay.", p: "Put a hand on your chest. Feel the warmth of it. Breathe slowly. You are a person having a painful moment, like every person has had." },
       { k: "ask", id: "critic", h: "What is the critic saying?" },
       { k: "ask", id: "facts", h: "What happened, in plain facts with no adjectives?" },
-      { k: "ask", id: "love", h: "What would you say to someone you love if this had happened to them?" },
+      { k: "ask", id: "love", echo: "facts", h: "What would you say to someone you love if this had happened to them?" },
       { k: "pick", h: "What does this need?", opts: ["Something to repair: I'll apologise or fix one thing", "Nothing to fix: this is old shame", "To be said aloud to one safe person"] }
     ] },
   { id: "lonely", name: "Lonely", line: "One small reach.",
@@ -123,6 +124,45 @@ IW.rescues = [
       { k: "ask", id: "need", h: "What do you need for the next hour?" }
     ] }
 ];
+
+/* ---------- What kind of weight is it? ----------
+   Not everything on a person's mind is a task. A rescue asks which of these four a thing is,
+   then asks the questions that fit: problem-solving for what can be acted on, worry work for
+   what-ifs, emotion-focused questions for feelings, and acceptance work for what can't be changed. */
+IW.weightKinds = [
+  ["feel", "A feeling I'm carrying"],
+  ["worry", "A worry about what might happen"],
+  ["cant", "Something I can't change"],
+  ["do", "Something I can actually do something about"]
+];
+IW.work = {
+  feel: [
+    { k: "ask", h: "Stay with it for a moment. What is the feeling, as exactly as you can name it?", p: "Hurt, grief, dread, resentment, loneliness, shame, exhaustion… there may be more than one." },
+    { k: "ask", h: "Where do you feel it in your body, and what is it like there?" },
+    { k: "ask", h: "What is this feeling asking for?", p: "Comfort, rest, to be said out loud, to be taken seriously, a limit, company." },
+    { k: "ask", h: "What would you say to someone you love who felt exactly this?" },
+    { k: "say", h: "A feeling doesn't need fixing.", p: "It needs to be felt and heard, and you have just done that. You don't have to solve it tonight. Feelings move on their own once they've been given room." }
+  ],
+  worry: [
+    { k: "ask", h: "What exactly are you afraid will happen? Say the worst version." },
+    { k: "ask", h: "What is most likely to happen instead?" },
+    { k: "ask", h: "If the worst did happen, what would you do, and who would help you?" },
+    { k: "pick", h: "Is there anything you can do about it today?", opts: ["Yes, one small thing", "No. It's a what-if, and nothing I do tonight changes it"] },
+    { k: "ask", h: "Write the one small thing. Or, if there's nothing to do, a line to tell yourself when it comes back.", p: "For example: “I've looked at this. I can't know yet. I'll look again on Friday.”" }
+  ],
+  cant: [
+    { k: "ask", h: "What part of it hurts the most?" },
+    { k: "ask", h: "How have you been fighting it, fixing it, or arguing with it in your head? What does that cost you?" },
+    { k: "ask", h: "If you stopped fighting it just for today, what would you have to feel?", p: "Grief, anger, fear, helplessness. Stopping the fight is not the same as saying it's okay." },
+    { k: "ask", h: "It stays true, and some things are still yours. What is one thing you get to choose today, alongside it?" },
+    { k: "ask", h: "Finish this: “I don't like it, I didn't choose it, and today I will ___.”" }
+  ],
+  do: [
+    { k: "ask", h: "What is the very next step? Small enough to do in ten minutes." },
+    { k: "ask", h: "When will you do it? Name a day and a time, or decide it can wait and say until when." },
+    { k: "say", h: "That one has somewhere to live now.", p: "It's written down with a time on it, so you don't have to keep holding it in your head until then." }
+  ]
+};
 
 /* ---------- Deep-work tools: for what isn't shifting, and for finding answers ---------- */
 IW.tools = [
