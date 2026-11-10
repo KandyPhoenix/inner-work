@@ -235,23 +235,56 @@ views.rescue = id => {
   }
   const f = IW.rescues.find(x => x.id === id); if (!f) return views.rescue();
   if (!U.rescue || U.rescue.id !== id) U.rescue = { id, i: -1, before: null, after: null, a: {} };
-  const R = U.rescue, n = f.steps.length, head = `<a class="back" href="#/rescue">← All rescues</a><p class="eyebrow">${esc(f.name)}</p>`;
+  const R = U.rescue, steps = rescueSteps(f, R), n = steps.length, head = `<a class="back" href="#/rescue">← All rescues</a><p class="eyebrow">${esc(f.name)}</p>`;
+  const quote = t => t ? `<blockquote class="about">${esc(t).replace(/\n/g, "<br>")}</blockquote>` : "";
   if (R.i === -1) return `${head}<h1>First, a number</h1><div class="card">${scale("U.rescue.before", "How strong is the feeling right now?", "calm", "worst")}</div><div class="row end"><button class="btn" data-act="rescueNext">Start</button></div>`;
   if (R.i < n) {
-    const s = f.steps[R.i], p = `U.rescue.a.s${R.i}`;
-    const body = s.k === "say" ? `<p style="font-size:1.08rem">${esc(s.p)}</p>` : s.k === "breathe" ? breather(s.secs) : s.k === "pick" ? chips(p, s.opts, true) : `<textarea data-bind="${p}" rows="3" aria-label="${esc(s.h)}">${esc(get(p) || "")}</textarea>`;
-    return `${head}<div class="bar"><i style="width:${100 * (R.i + 1) / (n + 1)}%"></i></div><h1>${esc(s.h)}</h1><div class="card">${body}</div>
-      <div class="row between"><button class="btn quiet" data-act="rescueBack">Back</button><button class="btn" data-act="rescueNext">Next</button></div>`;
+    const s = steps[R.i], p = `U.rescue.a.${s.key}`, it = rescueItem(f, R), lines = s.list ? linesOf(R.a[s.list]) : [];
+    const hint = s.p && s.k !== "say" ? `<p class="muted">${esc(s.p)}</p>` : "";
+    const one = (path, val, label) => `<button type="button" class="chip" data-act="one" data-path="${path}" data-val="${esc(val)}" aria-pressed="${String(get(path)) === String(val)}">${esc(label)}</button>`;
+    let body;
+    if (s.k === "say") body = `<p style="font-size:1.08rem">${esc(s.p)}</p>`;
+    else if (s.k === "breathe") body = breather(s.secs);
+    else if (s.k === "pick") body = hint + chips(p, s.opts, true);
+    else if (s.k === "list") body = `${hint}<textarea data-bind="${p}" rows="6" aria-label="${esc(s.h)}">${esc(get(p) || "")}</textarea>`;
+    else if (s.k === "focus") body = `<p class="muted">You'll take them one at a time. You can come back for the others.</p><div class="chips stack">${lines.map((l, i) => one("U.rescue.a.focus", i, l)).join("")}</div>`;
+    else if (s.k === "kind") body = `${quote(it.text)}<p class="muted">Pick the one that fits best. The next questions depend on it.</p><div class="chips stack">${IW.weightKinds.map(k => one(`U.rescue.a.kinds.${it.n}`, k[0], k[1])).join("")}</div>`;
+    else if (s.k === "again") { const left = lines.map((l, i) => [l, i]).filter(x => !(R.a.worked || []).includes(x[1]));
+      body = `<p class="muted">You don't have to. One is enough for one sitting.</p><div class="chips stack">${left.map(x => `<button type="button" class="chip" data-act="rescueAgain" data-i="${x[1]}">${esc(x[0])}</button>`).join("")}<button type="button" class="chip" data-act="rescueAgain" data-i="-1"><strong>That's enough for now</strong></button></div>`; }
+    else body = `${hint}<textarea data-bind="${p}" rows="3" aria-label="${esc(s.h)}">${esc(get(p) || "")}</textarea>`;
+    const about = s.work && s.k !== "say" ? quote(it.text) : s.echo ? quote(R.a[s.echo]) : "";
+    const title = s.k === "kind" ? "What kind of weight is this?" : s.h;
+    return `${head}<div class="bar"><i style="width:${100 * (R.i + 1) / (n + 1)}%"></i></div><h1>${esc(title)}</h1>${flash()}<div class="card">${about}${body}</div>
+      <div class="row between"><button class="btn quiet" data-act="rescueBack">Back</button>${s.k === "again" ? "" : `<button class="btn" data-act="rescueNext">Next</button>`}</div>`;
   }
   if (R.i === n) return `${head}<h1>And now?</h1><div class="card">${scale("U.rescue.after", "How strong is the feeling now?", "calm", "worst")}</div><div class="row end"><button class="btn" data-act="rescueNext">Finish</button></div>`;
-  const d = R.before - R.after;
+  const d = R.before - R.after, kinds = Object.values(R.a.kinds || {});
   return `${head}<h1>${d > 0 ? `From ${R.before} down to ${R.after}` : d === 0 ? `Still at ${R.after}` : `From ${R.before} up to ${R.after}`}</h1>
     <div class="card"><p>${d >= 2 ? "That's a real shift, and you made it happen. It's saved, so over time you'll see which of these works best for you."
       : d > 0 ? "A small shift counts. One point is the difference between stuck and moving."
-      : "It didn't move this time. That happens. Some states need a different approach or a second pass, and some need another person."}</p></div>
+      : "It didn't move this time. That happens. Some states need a different approach or a second pass, and some need another person."}</p>
+      ${kinds.includes("cant") || kinds.includes("worry") || kinds.includes("feel") ? `<p class="muted small">Feelings, long-running worries and things you can't change deserve more than ten minutes. <a href="#/explore">Deeper</a> has tools made for exactly those, and they keep what you write so you can come back to it.</p>` : ""}</div>
     <div class="row"><a class="btn" href="#/today">Done</a><a class="btn ghost" href="#/rescue">Try a different one</a><button class="btn ghost" data-act="newChat" data-kind="general">Talk to the guide</button></div>
     ${R.after >= 8 ? `<p class="small">If this is more than a bad mood, go to <a href="#/crisis">Help now</a>.</p>` : ""}`;
 };
+// A rescue's steps depend on what has been written so far: the "work" step becomes the
+// set of questions that fits the kind of thing being looked at (IW.work).
+const linesOf = t => String(t || "").split("\n").map(s => s.replace(/^\s*(?:[-•*]|\d+[.)])\s*/, "").trim()).filter(Boolean);
+function rescueItem(f, R) {
+  const w = f.steps.find(s => s.k === "work"); if (!w) return { text: "", kind: null, n: 0 };
+  if (w.list) { const n = R.a.focus == null ? 0 : +R.a.focus; return { text: linesOf(R.a[w.list])[n] || "", kind: (R.a.kinds || {})[n], n }; }
+  return { text: String(R.a[w.item] || "").trim(), kind: (R.a.kinds || {})[0], n: 0 };
+}
+function rescueSteps(f, R) {
+  const out = [];
+  f.steps.forEach((s, i) => {
+    if (s.k !== "work") { out.push(Object.assign({ key: s.id || "s" + i }, s)); return; }
+    const it = rescueItem(f, R), kind = IW.work[it.kind] ? it.kind : "feel";
+    IW.work[kind].forEach((w, j) => out.push(Object.assign({ key: `w${it.n}_${kind}_${j}`, work: true }, w)));
+    if (s.list) out.push({ k: "again", key: "again", list: s.list, h: "Do you want to look at another one?" });
+  });
+  return out;
+}
 
 views.explore = () => {
   S.threads = S.threads.filter(t => t.title || t.notes.length || Object.values(t.answers).some(v => (Array.isArray(v) ? v.length : v !== "" && v != null)));
@@ -660,12 +693,36 @@ const acts = {
   finish() { S.stage = "graduated"; saveNow(); U.flash = "That's it. You're done."; go("#/today"); },
   resume() { S.stage = "program"; S.graduatedAt = null; saveNow(); go("#/program"); },
   rescueNext() {
-    const R = U.rescue, f = IW.rescues.find(x => x.id === R.id), n = f.steps.length, r = $("#view input[type=range]");
+    const R = U.rescue, f = IW.rescues.find(x => x.id === R.id), r = $("#view input[type=range]");
     if (r && get(r.dataset.bind) == null) set(r.dataset.bind, +r.value);
-    if (R.i === n) { S.rescues.push({ t: Date.now(), flow: R.id, before: R.before, after: R.after, a: R.a }); saveNow(); }
-    R.i++; render();
+    let steps = rescueSteps(f, R); const s = R.i >= 0 ? steps[R.i] : null, stay = msg => { U.flash = msg; U.keepScroll = true; render(); };
+    if (s && s.k === "list") { const L = linesOf(R.a[s.key]); if (!L.length) return stay("Write at least one thing first."); if (L.length === 1) R.a.focus = 0; }
+    if (s && s.k === "focus" && R.a.focus == null) return stay("Pick the one you want to look at first.");
+    if (s && s.k === "kind" && !(R.a.kinds || {})[rescueItem(f, R).n]) return stay("Pick the one that fits best.");
+    if (s && s.k === "ask" && s.id && f.steps.some(x => x.k === "work" && x.item === s.id) && !String(R.a[s.key] || "").trim()) return stay("Write a few words first, so the next questions have something to work with.");
+    if (R.i === steps.length) { S.rescues.push({ t: Date.now(), flow: R.id, before: R.before, after: R.after, a: R.a }); saveNow(); }
+    R.i++; steps = rescueSteps(f, R);
+    const nx = steps[R.i];
+    if (nx && nx.k === "focus" && linesOf(R.a[nx.list]).length === 1) R.i++;            // only one thing written: nothing to choose between
+    if (steps[R.i] && steps[R.i].k === "again") {
+      R.a.worked = [...new Set([...(R.a.worked || []), rescueItem(f, R).n])];
+      if (linesOf(R.a[steps[R.i].list]).every((l, i) => R.a.worked.includes(i))) R.i++;   // nothing left to offer
+    }
+    render();
   },
-  rescueBack() { if (U.rescue.i > -1) U.rescue.i--; render(); },
+  rescueAgain(el) {
+    const R = U.rescue, f = IW.rescues.find(x => x.id === R.id), i = +el.dataset.i;
+    if (i < 0) { R.i = rescueSteps(f, R).length; return render(); }
+    R.a.focus = i; R.i = rescueSteps(f, R).findIndex(s => s.k === "kind"); render();
+  },
+  one(el) { const p = el.dataset.path, v = el.dataset.val; set(p, /^-?\d+$/.test(v) ? +v : v); el.parentElement.querySelectorAll(".chip").forEach(b => b.setAttribute("aria-pressed", String(b === el))); },
+  rescueBack() {
+    const R = U.rescue, f = IW.rescues.find(x => x.id === R.id); if (R.i > -1) R.i--;
+    const s = rescueSteps(f, R)[R.i];
+    if (s && s.k === "focus" && linesOf(R.a[s.list]).length === 1 && R.i > -1) R.i--;
+    if (s && s.k === "again") R.i--;
+    render();
+  },
   breathe(el) { startBreath(el.closest(".breather")); },
   newThread(el) { const t = { id: uid(), tool: el.dataset.tool, title: "", t: Date.now(), answers: {}, notes: [] }; S.threads.push(t); saveNow(); go("#/thread/" + t.id); },
   addNote(el) { const tx = U.note.trim(); if (!tx) return; S.threads[+el.dataset.ix].notes.push({ t: Date.now(), text: tx }); U.note = ""; saveNow(); U.keepScroll = true; render(); },

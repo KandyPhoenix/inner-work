@@ -208,6 +208,9 @@ ul.plain li + li { margin-top: 7px; }
 .bgpick i.drawn { background: linear-gradient(180deg, #d3e8cc, #5b9670 55%, #173a2a); }
 .bgpick i.photo { background: repeating-linear-gradient(45deg, var(--soft) 0 8px, transparent 8px 16px); border: 1.5px dashed var(--muted); }
 
+blockquote.about { margin: 0 0 14px; padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--soft); border-radius: 0 10px 10px 0; font-family: var(--serif); font-size: 1.05rem; }
+.card > blockquote.about + * { margin-top: 0; }
+
 .toasts { position: fixed; left: 0; right: 0; bottom: 92px; z-index: 1100; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; padding: 0 16px; }
 .toast { max-width: 460px; background: var(--surface); border: 1px solid rgba(255, 255, 255, .18); border-radius: 14px; padding: 12px 16px; box-shadow: var(--shadow); white-space: pre-line; font-size: .95rem;
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); animation: rise .25s ease-out; transition: opacity .35s ease; }
