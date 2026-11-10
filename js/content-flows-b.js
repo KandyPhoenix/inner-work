@@ -19,7 +19,7 @@
     say("That's allowed.", "You don't have to write it down for this to work. Hold it in mind for the next question.", { when: is("carry", "notnow") }),
     ask("friend", "If a friend told you they carried that same shame, or believed that same bottom line about themselves, what would you say to them?", { echo: ["bottom", "secret"], s: "What you'd say to a friend" }),
     ask("gap", "Why is it different for you? What makes you the exception to your own kindness?", { echo: "friend" }),
-    short("fair", "A fairer bottom line you're willing to try on", { p: "It doesn't have to feel true yet. 'I'm good enough as I am, and still learning.' 'I'm as worthy as anyone else.'", s: "A fairer bottom line" }),
+    short("fair", "A fairer bottom line you're willing to try on", { talk: true, p: "It doesn't have to feel true yet. 'I'm good enough as I am, and still learning.' 'I'm as worthy as anyone else.'", s: "A fairer bottom line" }),
     ask("rule1", "Which rule will you break this week, in one small way, to test it?", { echo: "rules", s: "The rule you'll test" })
   ];
 
@@ -394,7 +394,7 @@
     ask("first", "Which of those goes first when life gets busy, and how will you protect it?", { echo: "daily" }),
     ask("close", "People to keep close", { s: "People to keep close" }),
     ask("out", "What to keep out of your life, or limit", { p: "People, habits, substances, kinds of work, kinds of scrolling.", s: "What to limit" }),
-    ask("good", "Three good moments from the last week. What made each one good?", { p: "Lingering on a good moment for twenty seconds is one of the practices with steady evidence behind it." }),
+    ask("good", "Three good moments from the last week. What made each one good?", { p: "Lingering on a good moment for a little while, instead of moving straight on, is one of the practices with steady evidence behind it." }),
     ask("strength", "One of your strengths, and a new way to use it this month", { echo: "w2.strengths" }),
     short("review", "Your weekly review: day and time", { p: "Ten minutes. How am I? What do I need? What am I neglecting?", s: "Weekly review" }),
     ask("forward", "Something you're building, or looking forward to", { s: "What you're looking forward to" })
@@ -451,7 +451,7 @@
       ask("mean1", "If that were true, what would it mean about you?", { echo: "thought" }),
       ask("mean2", "And if that were true, what would that mean?", { echo: "mean1" }),
       ask("mean3", "And what is the worst part of that?", { echo: "mean2" }),
-      short("core", "You have reached the bottom. Write the belief in a few words.", { echo: "mean3", p: "It usually starts with 'I am…', 'People are…' or 'The world is…'.", s: "The belief at the bottom" }),
+      short("core", "You have reached the bottom. Write the belief in a few words.", { talk: true, echo: "mean3", p: "It usually starts with 'I am…', 'People are…' or 'The world is…'.", s: "The belief at the bottom" }),
       short("age", "When you feel it fully, how old do you feel?"),
       ask("earliest", "The earliest time you remember feeling this", { s: "The earliest memory of it" }),
       ask("taught", "Who or what taught it to you?"),
